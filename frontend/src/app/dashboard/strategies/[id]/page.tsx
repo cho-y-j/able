@@ -40,6 +40,37 @@ interface StrategyDetail {
   } | null;
 }
 
+interface ParamRange {
+  type: string;
+  current: number | string | null;
+  min: number | null;
+  max: number | null;
+  choices: string[] | null;
+}
+
+interface AIAnalysis {
+  ai_analysis: {
+    decision: string;
+    confidence: number;
+    reasoning: string;
+    risks: string;
+    news_sentiment: string;
+    raw_response: string;
+    tokens_used: { total: number };
+  };
+  fact_sheet: string;
+  news: { title: string; source: string; date: string }[];
+  time_patterns: {
+    day_of_week?: Record<string, { win_rate: number; avg_return: number; sample_count: number }>;
+    summary?: { best_day: string; worst_day: string; overall_win_rate: number };
+    streaks?: Record<string, { reversal_rate: number; sample_count: number }>;
+  };
+  current_signals: Record<string, { signal: string; accuracy: number }>;
+  indicator_accuracy?: {
+    ranking_overall?: { name: string; buy_accuracy: number; sell_accuracy: number; combined_accuracy: number }[];
+  };
+}
+
 function MetricCard({ label, value, suffix, color }: { label: string; value: number | null; suffix?: string; color?: string }) {
   const c = color || (value && value > 0 ? "text-green-400" : value && value < 0 ? "text-red-400" : "text-white");
   return (
@@ -75,8 +106,18 @@ export default function StrategyDetailPage() {
   const { t } = useI18n();
   const [data, setData] = useState<StrategyDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"overview" | "equity" | "trades" | "validation">("overview");
+  const [tab, setTab] = useState<"overview" | "equity" | "trades" | "validation" | "params" | "ai">("overview");
   const chartRef = useRef<HTMLDivElement>(null);
+
+  // Parameter editing
+  const [paramRanges, setParamRanges] = useState<Record<string, ParamRange>>({});
+  const [editParams, setEditParams] = useState<Record<string, number | string>>({});
+  const [rebacktesting, setRebacktesting] = useState(false);
+
+  // AI Analysis
+  const [aiResult, setAiResult] = useState<AIAnalysis | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiJobId, setAiJobId] = useState<string | null>(null);
 
   useEffect(() => {
     if (params.id) fetchDetail(params.id as string);
@@ -86,6 +127,12 @@ export default function StrategyDetailPage() {
     try {
       const { data: d } = await api.get(`/strategies/${id}/detail`);
       setData(d);
+      setEditParams(d.parameters || {});
+      // Fetch param ranges
+      try {
+        const { data: ranges } = await api.get(`/analysis/strategies/${id}/param-ranges`);
+        setParamRanges(ranges.parameters || {});
+      } catch { /* param ranges optional */ }
     } catch {
       router.push("/dashboard/strategies");
     } finally {
@@ -131,6 +178,65 @@ export default function StrategyDetailPage() {
     return () => chart.remove();
   };
 
+  // Parameter editing
+  const handleRebacktest = async () => {
+    if (!data) return;
+    setRebacktesting(true);
+    try {
+      const { data: result } = await api.post(`/analysis/strategies/${data.id}/rebacktest`, {
+        parameters: editParams,
+        risk_params: data.risk_params,
+      });
+      // Refresh the page data
+      await fetchDetail(data.id);
+      alert(`재백테스트 완료! 새 점수: ${result.composite_score?.toFixed(1)} (${result.grade})`);
+    } catch (e: any) {
+      alert(`재백테스트 실패: ${e.response?.data?.detail || e.message}`);
+    } finally {
+      setRebacktesting(false);
+    }
+  };
+
+  // AI Analysis
+  const startAiAnalysis = async () => {
+    if (!data) return;
+    setAiLoading(true);
+    setAiResult(null);
+    try {
+      const { data: job } = await api.post("/analysis/ai-report", {
+        stock_code: data.stock_code,
+        date_range_start: data.backtest?.date_range_start || "2024-01-01",
+        date_range_end: data.backtest?.date_range_end || "2025-12-31",
+        include_macro: true,
+      });
+      setAiJobId(job.job_id);
+      pollAiJob(job.job_id);
+    } catch (e: any) {
+      alert(`AI 분석 시작 실패: ${e.response?.data?.detail || e.message}`);
+      setAiLoading(false);
+    }
+  };
+
+  const pollAiJob = (jobId: string) => {
+    const interval = setInterval(async () => {
+      try {
+        const { data: job } = await api.get(`/analysis/ai-report/${jobId}`);
+        if (job.status === "complete") {
+          clearInterval(interval);
+          setAiResult(job.result);
+          setAiLoading(false);
+        } else if (job.status === "error") {
+          clearInterval(interval);
+          alert(`AI 분석 실패: ${job.error}`);
+          setAiLoading(false);
+        }
+      } catch {
+        clearInterval(interval);
+        setAiLoading(false);
+      }
+    }, 2000);
+  };
+
   if (loading) return <div className="flex items-center justify-center h-64"><div className="text-gray-500">로딩 중...</div></div>;
   if (!data) return <div className="text-red-500">전략을 찾을 수 없습니다.</div>;
 
@@ -155,8 +261,14 @@ export default function StrategyDetailPage() {
             {data.stock_code} {data.stock_name && `(${data.stock_name})`} | {data.strategy_type} | {data.status}
           </p>
         </div>
-        <div className={`px-4 py-2 rounded-lg text-sm font-medium ${data.is_auto_trading ? "bg-green-600/20 text-green-400" : "bg-gray-700 text-gray-400"}`}>
-          {data.is_auto_trading ? "자동매매 활성" : "비활성"}
+        <div className="flex items-center gap-3">
+          <button onClick={startAiAnalysis} disabled={aiLoading}
+            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 rounded-lg text-sm font-medium transition-colors">
+            {aiLoading ? "AI 분석 중..." : "🤖 AI 분석"}
+          </button>
+          <div className={`px-4 py-2 rounded-lg text-sm font-medium ${data.is_auto_trading ? "bg-green-600/20 text-green-400" : "bg-gray-700 text-gray-400"}`}>
+            {data.is_auto_trading ? "자동매매 활성" : "비활성"}
+          </div>
         </div>
       </div>
 
@@ -174,11 +286,11 @@ export default function StrategyDetailPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-6 bg-gray-900 rounded-lg p-1 border border-gray-800">
-        {(["overview", "equity", "trades", "validation"] as const).map((t) => (
+      <div className="flex gap-1 mb-6 bg-gray-900 rounded-lg p-1 border border-gray-800 overflow-x-auto">
+        {(["overview", "equity", "trades", "validation", "params", "ai"] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
-            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${tab === t ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white"}`}>
-            {t === "overview" ? "성과 지표" : t === "equity" ? "에쿼티 커브" : t === "trades" ? "거래 내역" : "검증 결과"}
+            className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${tab === t ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white"}`}>
+            {t === "overview" ? "성과 지표" : t === "equity" ? "에쿼티 커브" : t === "trades" ? "거래 내역" : t === "validation" ? "검증 결과" : t === "params" ? "파라미터 조정" : "AI 분석"}
           </button>
         ))}
       </div>
@@ -339,7 +451,6 @@ export default function StrategyDetailPage() {
                     <div className="text-2xl font-bold">{vr.mc.statistics?.risk_of_ruin_pct != null ? `${vr.mc.statistics.risk_of_ruin_pct.toFixed(1)}%` : "N/A"}</div>
                   </div>
                 </div>
-                {/* MC Distribution Bar */}
                 {vr.mc.percentiles && (
                   <div className="bg-gray-800 rounded-lg p-4">
                     <div className="text-xs text-gray-500 mb-3">수익률 분포 (백분위)</div>
@@ -390,7 +501,6 @@ export default function StrategyDetailPage() {
                 </>
               )}
             </div>
-            {/* IS vs OOS comparison */}
             {vr.oos_detail?.in_sample && vr.oos_detail?.out_of_sample && (
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-gray-800 rounded-lg p-4">
@@ -414,6 +524,232 @@ export default function StrategyDetailPage() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Tab: Parameter Adjustment */}
+      {tab === "params" && (
+        <div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
+          <h3 className="text-lg font-semibold mb-2">파라미터 조정</h3>
+          <p className="text-xs text-gray-500 mb-4">파라미터를 조정하고 재백테스트를 실행하면 변경된 파라미터로 새로운 성과를 확인할 수 있습니다.</p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+            {Object.entries(editParams).map(([key, val]) => {
+              const range = paramRanges[key];
+              return (
+                <div key={key} className="bg-gray-800 rounded-lg p-4">
+                  <label className="block text-sm text-gray-400 mb-2">{key}</label>
+                  {range?.choices ? (
+                    <select value={String(val)} onChange={(e) => setEditParams(p => ({ ...p, [key]: e.target.value }))}
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm">
+                      {range.choices.map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  ) : (
+                    <div className="space-y-2">
+                      <input type="number" value={val} onChange={(e) => setEditParams(p => ({ ...p, [key]: Number(e.target.value) }))}
+                        min={range?.min ?? undefined} max={range?.max ?? undefined}
+                        step={range?.type === "float" ? 0.1 : 1}
+                        className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm font-mono" />
+                      {range && (
+                        <div className="flex justify-between text-xs text-gray-600">
+                          <span>최소: {range.min}</span>
+                          <span className="text-blue-400">현재: {range.current}</span>
+                          <span>최대: {range.max}</span>
+                        </div>
+                      )}
+                      {range?.min != null && range?.max != null && (
+                        <input type="range" value={Number(val)} onChange={(e) => setEditParams(p => ({ ...p, [key]: Number(e.target.value) }))}
+                          min={range.min} max={range.max} step={range.type === "float" ? 0.1 : 1}
+                          className="w-full accent-blue-500" />
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center gap-4">
+            <button onClick={handleRebacktest} disabled={rebacktesting}
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 rounded-lg text-sm font-medium transition-colors">
+              {rebacktesting ? "재백테스트 실행 중..." : "재백테스트 실행"}
+            </button>
+            <button onClick={() => data && setEditParams(data.parameters)}
+              className="px-6 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium transition-colors text-gray-300">
+              원래값 복원
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Tab: AI Analysis */}
+      {tab === "ai" && (
+        <div className="space-y-6">
+          {!aiResult && !aiLoading && (
+            <div className="bg-gray-900 rounded-xl border border-gray-800 p-8 text-center">
+              <div className="text-4xl mb-3">🤖</div>
+              <h3 className="text-lg font-semibold mb-2">AI 하이브리드 분석</h3>
+              <p className="text-sm text-gray-500 mb-4">
+                통계 엔진이 시간패턴, 지표 적중률, 매크로 상관관계를 분석하고,<br />
+                DeepSeek AI가 뉴스 감성과 함께 종합 매매 판단을 내립니다.
+              </p>
+              <button onClick={startAiAnalysis}
+                className="px-8 py-3 bg-purple-600 hover:bg-purple-700 rounded-lg text-sm font-medium transition-colors">
+                AI 분석 시작
+              </button>
+            </div>
+          )}
+
+          {aiLoading && (
+            <div className="bg-gray-900 rounded-xl border border-gray-800 p-8 text-center">
+              <div className="animate-spin text-4xl mb-3">⚙️</div>
+              <p className="text-gray-400">통계 분석 + AI 판단 생성 중... (약 15-30초)</p>
+              <p className="text-xs text-gray-600 mt-2">Layer 1 (통계) → Layer 2 (팩트시트) → Layer 3 (DeepSeek AI)</p>
+            </div>
+          )}
+
+          {aiResult && (
+            <>
+              {/* AI Decision Card */}
+              <div className={`rounded-xl border p-6 ${
+                aiResult.ai_analysis.decision === "매수" ? "bg-green-900/20 border-green-800" :
+                aiResult.ai_analysis.decision === "매도" ? "bg-red-900/20 border-red-800" :
+                "bg-gray-900 border-gray-800"
+              }`}>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <span className={`text-3xl font-bold ${
+                      aiResult.ai_analysis.decision === "매수" ? "text-green-400" :
+                      aiResult.ai_analysis.decision === "매도" ? "text-red-400" : "text-yellow-400"
+                    }`}>
+                      {aiResult.ai_analysis.decision}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: 10 }, (_, i) => (
+                        <div key={i} className={`w-3 h-3 rounded-sm ${i < aiResult.ai_analysis.confidence ? "bg-blue-500" : "bg-gray-700"}`} />
+                      ))}
+                      <span className="text-sm text-gray-400 ml-2">확신도 {aiResult.ai_analysis.confidence}/10</span>
+                    </div>
+                  </div>
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                    aiResult.ai_analysis.news_sentiment === "긍정" ? "bg-green-900/50 text-green-400" :
+                    aiResult.ai_analysis.news_sentiment === "부정" ? "bg-red-900/50 text-red-400" :
+                    "bg-gray-700 text-gray-400"
+                  }`}>
+                    뉴스: {aiResult.ai_analysis.news_sentiment}
+                  </span>
+                </div>
+
+                <div className="bg-black/20 rounded-lg p-4 text-sm whitespace-pre-wrap">
+                  {aiResult.ai_analysis.raw_response}
+                </div>
+
+                <div className="text-xs text-gray-600 mt-3">
+                  모델: DeepSeek | 토큰: {aiResult.ai_analysis.tokens_used?.total || 0}
+                </div>
+              </div>
+
+              {/* Current Signals */}
+              {Object.keys(aiResult.current_signals).length > 0 && (
+                <div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
+                  <h4 className="text-sm font-semibold text-gray-400 mb-3">현재 활성 시그널</h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {Object.entries(aiResult.current_signals).map(([name, info]) => (
+                      <div key={name} className={`rounded-lg p-3 ${info.signal === "buy" ? "bg-green-900/20 border border-green-800" : "bg-red-900/20 border border-red-800"}`}>
+                        <div className="text-xs text-gray-400">{name}</div>
+                        <div className={`text-sm font-bold ${info.signal === "buy" ? "text-green-400" : "text-red-400"}`}>
+                          {info.signal === "buy" ? "매수" : "매도"} (적중률 {info.accuracy}%)
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Time Patterns */}
+              {aiResult.time_patterns?.day_of_week && (
+                <div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
+                  <h4 className="text-sm font-semibold text-gray-400 mb-3">요일별 승률 패턴</h4>
+                  <div className="flex gap-2">
+                    {Object.entries(aiResult.time_patterns.day_of_week).map(([day, stats]) => (
+                      <div key={day} className="flex-1 text-center">
+                        <div className="text-xs text-gray-500 mb-1">{day}</div>
+                        <div className={`text-lg font-bold ${stats.win_rate >= 55 ? "text-green-400" : stats.win_rate <= 45 ? "text-red-400" : "text-gray-300"}`}>
+                          {stats.win_rate}%
+                        </div>
+                        <div className="w-full bg-gray-800 rounded-full h-2 mt-1">
+                          <div className={`h-2 rounded-full ${stats.win_rate >= 50 ? "bg-green-500" : "bg-red-500"}`} style={{ width: `${stats.win_rate}%` }} />
+                        </div>
+                        <div className="text-[10px] text-gray-600 mt-1">{stats.sample_count}일</div>
+                      </div>
+                    ))}
+                  </div>
+                  {aiResult.time_patterns.summary && (
+                    <p className="text-xs text-gray-600 mt-3">
+                      최고: {aiResult.time_patterns.summary.best_day} | 최저: {aiResult.time_patterns.summary.worst_day} | 전체 승률: {aiResult.time_patterns.summary.overall_win_rate}%
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Indicator Accuracy */}
+              {aiResult.indicator_accuracy?.ranking_overall && (
+                <div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
+                  <h4 className="text-sm font-semibold text-gray-400 mb-3">지표 적중률 랭킹</h4>
+                  <div className="space-y-2">
+                    {aiResult.indicator_accuracy.ranking_overall.slice(0, 8).map((ind, i) => (
+                      <div key={ind.name} className="flex items-center gap-3">
+                        <span className="text-xs text-gray-600 w-6">#{i + 1}</span>
+                        <span className="text-sm text-gray-300 w-40 truncate">{ind.name}</span>
+                        <div className="flex-1 flex items-center gap-2">
+                          <div className="flex-1 bg-gray-800 rounded-full h-2">
+                            <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${ind.combined_accuracy}%` }} />
+                          </div>
+                          <span className="text-xs text-gray-400 w-20">
+                            매수 {ind.buy_accuracy}%
+                          </span>
+                          <span className="text-xs text-gray-400 w-20">
+                            매도 {ind.sell_accuracy}%
+                          </span>
+                          <span className="text-sm font-mono font-bold text-white w-12 text-right">
+                            {ind.combined_accuracy}%
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* News */}
+              {aiResult.news && aiResult.news.length > 0 && (
+                <div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
+                  <h4 className="text-sm font-semibold text-gray-400 mb-3">최근 뉴스</h4>
+                  <div className="space-y-2">
+                    {aiResult.news.map((n, i) => (
+                      <div key={i} className="flex items-start gap-2 text-sm">
+                        <span className="text-gray-600">{i + 1}.</span>
+                        <div>
+                          <div className="text-gray-300">{n.title}</div>
+                          <div className="text-xs text-gray-600">{n.source} {n.date && `| ${n.date}`}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Fact Sheet (collapsible) */}
+              <details className="bg-gray-900 rounded-xl border border-gray-800">
+                <summary className="p-4 text-sm text-gray-500 cursor-pointer hover:text-gray-300">
+                  팩트시트 원문 보기 (AI에 입력된 통계 요약)
+                </summary>
+                <pre className="px-4 pb-4 text-xs text-gray-600 whitespace-pre-wrap font-mono">
+                  {aiResult.fact_sheet}
+                </pre>
+              </details>
+            </>
+          )}
         </div>
       )}
     </div>

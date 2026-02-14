@@ -108,9 +108,22 @@ const mockStrategyDetail = {
 };
 
 describe("StrategyDetailPage", () => {
+  const mockParamRanges = {
+    parameters: {
+      fast_period: { type: "int", current: 12, min: 5, max: 50, choices: null },
+      slow_period: { type: "int", current: 26, min: 10, max: 100, choices: null },
+    },
+    current_values: { fast_period: 12, slow_period: 26 },
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
-    mockedApi.get.mockResolvedValue({ data: mockStrategyDetail });
+    mockedApi.get.mockImplementation((url: string) => {
+      if (url.includes("/param-ranges")) {
+        return Promise.resolve({ data: mockParamRanges });
+      }
+      return Promise.resolve({ data: mockStrategyDetail });
+    });
   });
 
   it("shows loading state initially", () => {
@@ -403,6 +416,70 @@ describe("StrategyDetailPage", () => {
       expect(screen.getByText("WFA 점수")).toBeInTheDocument();
       expect(screen.getByText("MC 수익 확률")).toBeInTheDocument();
       expect(screen.getByText("OOS 점수")).toBeInTheDocument();
+    });
+  });
+
+  it("switches to params tab and shows parameter adjustment UI", async () => {
+    const user = userEvent.setup();
+
+    await act(async () => {
+      render(<StrategyDetailPage />);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("파라미터 조정")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText("파라미터 조정"));
+
+    await waitFor(() => {
+      // Heading
+      const headings = screen.getAllByText("파라미터 조정");
+      expect(headings.length).toBeGreaterThanOrEqual(2); // tab button + section heading
+
+      // Buttons
+      expect(screen.getByText("재백테스트 실행")).toBeInTheDocument();
+      expect(screen.getByText("원래값 복원")).toBeInTheDocument();
+
+      // Parameter labels from editParams (initialized from data.parameters)
+      // The labels are <label> elements but without htmlFor, so use getAllByText
+      const fastLabels = screen.getAllByText("fast_period");
+      expect(fastLabels.length).toBeGreaterThanOrEqual(1);
+      const slowLabels = screen.getAllByText("slow_period");
+      expect(slowLabels.length).toBeGreaterThanOrEqual(1);
+      const signalLabels = screen.getAllByText("signal_period");
+      expect(signalLabels.length).toBeGreaterThanOrEqual(1);
+      const rsiLabels = screen.getAllByText("rsi_period");
+      expect(rsiLabels.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  it("switches to AI tab and shows AI analysis initial state", async () => {
+    const user = userEvent.setup();
+
+    await act(async () => {
+      render(<StrategyDetailPage />);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("AI 분석")).toBeInTheDocument();
+    });
+
+    // Click the "AI 분석" tab button (there are two elements with "AI 분석" text: header button and tab)
+    const aiTabButtons = screen.getAllByText("AI 분석");
+    // The tab button is in the tab bar — click the last one which is the tab
+    await user.click(aiTabButtons[aiTabButtons.length - 1]);
+
+    await waitFor(() => {
+      // Heading
+      expect(screen.getByText("AI 하이브리드 분석")).toBeInTheDocument();
+
+      // Start button
+      expect(screen.getByText("AI 분석 시작")).toBeInTheDocument();
+
+      // Description text about 통계 엔진 and DeepSeek AI
+      expect(screen.getByText(/통계 엔진/)).toBeInTheDocument();
+      expect(screen.getByText(/DeepSeek AI/)).toBeInTheDocument();
     });
   });
 });
