@@ -1,0 +1,33 @@
+# KIS Open Trading API endpoints
+REAL_BASE_URL = "https://openapi.koreainvestment.com:9443"
+PAPER_BASE_URL = "https://openapivts.koreainvestment.com:29443"
+
+REAL_WS_URL = "ws://ops.koreainvestment.com:21000"
+PAPER_WS_URL = "ws://ops.koreainvestment.com:31000"
+
+# Token
+TOKEN_PATH = "/oauth2/tokenP"
+TOKEN_REVOKE_PATH = "/oauth2/revokeP"
+
+# Domestic stock
+STOCK_PRICE_PATH = "/uapi/domestic-stock/v1/quotations/inquire-price"
+STOCK_DAILY_PRICE_PATH = "/uapi/domestic-stock/v1/quotations/inquire-daily-price"
+STOCK_ORDERBOOK_PATH = "/uapi/domestic-stock/v1/quotations/inquire-asking-price-exp-ccn"
+
+# Orders
+ORDER_PATH = "/uapi/domestic-stock/v1/trading/order-cash"
+ORDER_CANCEL_PATH = "/uapi/domestic-stock/v1/trading/order-rvsecncl"
+ORDER_STATUS_PATH = "/uapi/domestic-stock/v1/trading/inquire-daily-ccld"
+
+# Balance
+BALANCE_PATH = "/uapi/domestic-stock/v1/trading/inquire-balance"
+
+# Transaction IDs
+TR_ID_BUY = "TTTC0802U"       # Real buy
+TR_ID_SELL = "TTTC0801U"      # Real sell
+TR_ID_BUY_PAPER = "VTTC0802U"  # Paper buy
+TR_ID_SELL_PAPER = "VTTC0801U"  # Paper sell
+TR_ID_BALANCE = "TTTC8434R"
+TR_ID_BALANCE_PAPER = "VTTC8434R"
+TR_ID_PRICE = "FHKST01010100"
+TR_ID_DAILY_PRICE = "FHKST01010400"

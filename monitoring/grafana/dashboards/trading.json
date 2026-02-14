@@ -1,0 +1,115 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "Orders Total",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(able_orders_total)",
+          "legendFormat": "Total Orders"
+        }
+      ]
+    },
+    {
+      "title": "Order Latency (p95)",
+      "type": "gauge",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, rate(able_order_latency_seconds_bucket[5m]))",
+          "legendFormat": "p95"
+        }
+      ]
+    },
+    {
+      "title": "Avg Slippage (bps)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, rate(able_slippage_bps_bucket[5m]))",
+          "legendFormat": "Median Slippage"
+        }
+      ]
+    },
+    {
+      "title": "Circuit Breakers",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "targets": [
+        {
+          "expr": "able_circuit_breaker_state",
+          "legendFormat": "{{ name }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "CLOSED" }, "1": { "text": "OPEN" }, "2": { "text": "HALF_OPEN" } } }
+          ]
+        }
+      }
+    },
+    {
+      "title": "HTTP Request Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [
+        {
+          "expr": "sum(rate(able_http_requests_total[5m])) by (path)",
+          "legendFormat": "{{ path }}"
+        }
+      ]
+    },
+    {
+      "title": "HTTP Latency (p95)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(able_http_request_duration_seconds_bucket[5m])) by (le, path))",
+          "legendFormat": "{{ path }}"
+        }
+      ]
+    },
+    {
+      "title": "KIS API Latency",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, rate(able_kis_api_latency_seconds_bucket[5m]))",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "histogram_quantile(0.5, rate(able_kis_api_latency_seconds_bucket[5m]))",
+          "legendFormat": "p50"
+        }
+      ]
+    },
+    {
+      "title": "Agent Session Runs",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "targets": [
+        {
+          "expr": "sum(rate(able_agent_runs_total[5m])) by (status)",
+          "legendFormat": "{{ status }}"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["able", "trading"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "ABLE Trading Dashboard",
+  "uid": "able-trading"
+}
