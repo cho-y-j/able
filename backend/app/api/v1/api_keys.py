@@ -244,6 +244,23 @@ async def validate_key(
                         timeout=10.0,
                     )
                     valid = resp.status_code == 200
+            elif provider == "deepseek":
+                import httpx
+                async with httpx.AsyncClient() as client:
+                    resp = await client.post(
+                        "https://api.deepseek.com/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {api_key}",
+                            "Content-Type": "application/json",
+                        },
+                        json={
+                            "model": credential.model_name or "deepseek-chat",
+                            "max_tokens": 1,
+                            "messages": [{"role": "user", "content": "hi"}],
+                        },
+                        timeout=15.0,
+                    )
+                    valid = resp.status_code == 200
             else:
                 return ValidateResponse(valid=False, message=f"Unknown provider: {provider}")
 

@@ -38,6 +38,7 @@ async def create_strategy(
     strategy = Strategy(user_id=user.id, **req.model_dump())
     db.add(strategy)
     await db.flush()
+    await db.refresh(strategy)
     return StrategyResponse(id=str(strategy.id), **{
         k: getattr(strategy, k) for k in StrategyResponse.model_fields if k != "id"
     })
@@ -78,6 +79,7 @@ async def update_strategy(
         setattr(strategy, field, value)
 
     await db.flush()
+    await db.refresh(strategy)
     return StrategyResponse(id=str(strategy.id), **{
         k: getattr(strategy, k) for k in StrategyResponse.model_fields if k != "id"
     })
@@ -135,6 +137,7 @@ async def activate_strategy(
     strategy.is_auto_trading = True
     strategy.status = "active"
     await db.flush()
+    await db.refresh(strategy)
     return StrategyResponse(id=str(strategy.id), **{
         k: getattr(strategy, k) for k in StrategyResponse.model_fields if k != "id"
     })
@@ -156,6 +159,7 @@ async def deactivate_strategy(
     strategy.is_auto_trading = False
     strategy.status = "paused"
     await db.flush()
+    await db.refresh(strategy)
     return StrategyResponse(id=str(strategy.id), **{
         k: getattr(strategy, k) for k in StrategyResponse.model_fields if k != "id"
     })
