@@ -25,7 +25,7 @@ def walk_forward_analysis(
         end = min(start + window_size, n)
         window = df.iloc[start:end]
 
-        if len(window) < 50:
+        if len(window) < 30:
             continue
 
         split_point = int(len(window) * train_ratio)
@@ -59,7 +59,7 @@ def walk_forward_analysis(
             })
 
     if not results:
-        return {"wfa_score": 0, "windows": [], "stability": 0}
+        return {"wfa_score": 0, "windows": [], "stability": 0, "mean_sharpe": 0, "mean_return": 0}
 
     sharpe_values = [r["sharpe_ratio"] for r in results]
     return_values = [r["total_return"] for r in results]

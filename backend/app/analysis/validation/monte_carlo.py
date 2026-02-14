@@ -39,22 +39,25 @@ def monte_carlo_simulation(
     returns = np.array(trade_returns) / 100  # Convert from percentage
     n_trades = len(returns)
 
-    # Run simulations
+    # Run simulations using bootstrap resampling (with replacement)
+    # Note: simple permutation doesn't change the product of returns,
+    # so we use bootstrap to create genuinely different equity paths.
     final_equities = np.zeros(n_simulations)
     max_drawdowns = np.zeros(n_simulations)
     equity_paths = np.zeros((n_simulations, n_trades + 1))
     equity_paths[:, 0] = initial_capital
 
     for sim in range(n_simulations):
-        # Shuffle trade order
-        shuffled = np.random.permutation(returns)
+        # Bootstrap: sample WITH replacement to create different trade sequences
+        indices = np.random.randint(0, n_trades, size=n_trades)
+        sampled = returns[indices]
 
         # Build equity curve
         equity = initial_capital
         peak = equity
         max_dd = 0
 
-        for i, ret in enumerate(shuffled):
+        for i, ret in enumerate(sampled):
             equity *= (1 + ret)
             equity_paths[sim, i + 1] = equity
             if equity > peak:
