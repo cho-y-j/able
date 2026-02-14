@@ -559,13 +559,8 @@ class TestStrategyCRUD:
         assert resp.status_code == 404
 
     @pytest.mark.asyncio
-    @patch("app.tasks.optimization_tasks.run_strategy_search")
-    async def test_search_strategies(self, mock_search, client):
-        """POST /strategies/search kicks off Celery task."""
-        mock_task = MagicMock()
-        mock_task.id = "task-123"
-        mock_search.delay.return_value = mock_task
-
+    async def test_search_strategies(self, client):
+        """POST /strategies/search starts async search job."""
         resp = await client.post("/api/v1/strategies/search", json={
             "stock_code": "005930",
             "date_range_start": "2024-01-01",
@@ -574,8 +569,8 @@ class TestStrategyCRUD:
 
         assert resp.status_code == 200
         data = resp.json()
-        assert data["job_id"] == "task-123"
-        assert data["status"] == "queued"
+        assert "job_id" in data
+        assert data["status"] == "running"
 
     @pytest.mark.asyncio
     async def test_activate_strategy(self, client, test_user):
