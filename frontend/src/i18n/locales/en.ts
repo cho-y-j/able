@@ -116,8 +116,8 @@ const en = {
   strategies: {
     title: "Trading Strategies",
     aiSearch: "AI Strategy Search",
-    aiSearchDesc: "Enter a stock code and let AI find the optimal trading strategy using backtesting and validation.",
-    stockCodePlaceholder: "Stock code (e.g., 005930 for Samsung)",
+    aiSearchDesc: "Enter a stock code or name and let AI find the optimal trading strategy using backtesting and validation.",
+    stockCodePlaceholder: "Stock code or name (e.g., 005930, 삼성전자)",
     searching: "Searching...",
     searchStrategy: "Search Strategy",
     myStrategies: "My Strategies",

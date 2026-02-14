@@ -118,8 +118,8 @@ const ko: Translations = {
   strategies: {
     title: "매매 전략",
     aiSearch: "AI 전략 탐색",
-    aiSearchDesc: "종목코드를 입력하면 AI가 백테스트와 검증을 통해 최적의 매매 전략을 찾아줍니다.",
-    stockCodePlaceholder: "종목코드 (예: 005930 삼성전자)",
+    aiSearchDesc: "종목코드 또는 종목명을 입력하면 AI가 백테스트와 검증을 통해 최적의 매매 전략을 찾아줍니다.",
+    stockCodePlaceholder: "종목코드 또는 종목명 (예: 005930, 삼성전자)",
     searching: "탐색 중...",
     searchStrategy: "전략 탐색",
     myStrategies: "내 전략",

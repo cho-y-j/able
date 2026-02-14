@@ -86,7 +86,7 @@ describe("StrategiesPage", () => {
     expect(screen.getByText("Trading Strategies")).toBeInTheDocument();
     expect(screen.getByText("AI Strategy Search")).toBeInTheDocument();
     expect(
-      screen.getByPlaceholderText("Stock code (e.g., 005930 for Samsung)")
+      screen.getByPlaceholderText("Stock code or name (e.g., 005930, 삼성전자)")
     ).toBeInTheDocument();
     expect(screen.getByText("Search Strategy")).toBeInTheDocument();
   });
@@ -190,7 +190,7 @@ describe("StrategiesPage", () => {
     });
 
     const input = screen.getByPlaceholderText(
-      "Stock code (e.g., 005930 for Samsung)"
+      "Stock code or name (e.g., 005930, 삼성전자)"
     );
     await user.type(input, "005930");
     await user.click(screen.getByText("Search Strategy"));

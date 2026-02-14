@@ -18,6 +18,72 @@ logger = logging.getLogger(__name__)
 # Korean stocks on Yahoo Finance use .KS (KOSPI) or .KQ (KOSDAQ) suffix
 _KOSDAQ_PREFIXES = {"2", "3", "4"}  # KOSDAQ codes typically start with these
 
+# Common Korean stock name → code mapping
+_KR_NAME_TO_CODE: dict[str, str] = {
+    "삼성전자": "005930", "삼성": "005930", "삼전": "005930",
+    "SK하이닉스": "000660", "하이닉스": "000660",
+    "LG에너지솔루션": "373220",
+    "삼성바이오로직스": "207940", "삼바": "207940",
+    "현대차": "005380", "현대자동차": "005380",
+    "기아": "000270", "기아차": "000270",
+    "셀트리온": "068270",
+    "KB금융": "105560",
+    "신한지주": "055550", "신한": "055550",
+    "POSCO홀딩스": "005490", "포스코": "005490",
+    "네이버": "035420", "NAVER": "035420",
+    "카카오": "035720",
+    "삼성SDI": "006400",
+    "LG화학": "051910",
+    "현대모비스": "012330",
+    "삼성물산": "028260",
+    "삼성생명": "032830",
+    "하나금융지주": "086790", "하나금융": "086790",
+    "카카오뱅크": "323410",
+    "크래프톤": "259960",
+    "두산에너빌리티": "034020",
+    "SK이노베이션": "096770",
+    "SK텔레콤": "017670",
+    "LG전자": "066570",
+    "한국전력": "015760", "한전": "015760",
+    "카카오페이": "377300",
+    "엔씨소프트": "036570", "엔씨": "036570",
+    "KT": "030200",
+    "SK": "034730",
+}
+
+
+def resolve_stock_code(raw_input: str) -> tuple[str, str | None]:
+    """Resolve user input to a stock code and optional stock name.
+
+    Handles: Korean names (삼성전자), numeric codes (005930), Yahoo tickers (005930.KS).
+    Returns: (stock_code, stock_name) where stock_name is set if resolved from a name.
+    """
+    clean = raw_input.strip()
+
+    # Check name mapping first
+    if clean in _KR_NAME_TO_CODE:
+        return _KR_NAME_TO_CODE[clean], clean
+
+    # Case-insensitive lookup
+    for name, code in _KR_NAME_TO_CODE.items():
+        if name.lower() == clean.lower():
+            return code, name
+
+    # If it's a 6-digit number, use directly
+    if clean.isdigit() and len(clean) == 6:
+        return clean, None
+
+    # If it already has .KS/.KQ suffix, extract the code
+    if clean.endswith((".KS", ".KQ")):
+        return clean.split(".")[0], None
+
+    # ASCII alpha only = international ticker (e.g., AAPL)
+    if clean.isascii() and any(c.isalpha() for c in clean):
+        return clean, None
+
+    # Unknown — return as-is and let downstream handle the error
+    return clean, None
+
 
 def krx_to_yahoo_ticker(stock_code: str) -> str:
     """Convert KRX stock code to Yahoo Finance ticker.
@@ -32,14 +98,19 @@ def krx_to_yahoo_ticker(stock_code: str) -> str:
     if code.endswith((".KS", ".KQ")):
         return code
 
-    # Non-Korean tickers (contains letters) — pass through
-    if any(c.isalpha() for c in code):
+    # Non-Korean tickers (ASCII letters only) — pass through
+    if code.isascii() and any(c.isalpha() for c in code):
         return code
 
-    # Determine market from code prefix
-    if code[0] in _KOSDAQ_PREFIXES:
-        return f"{code}.KQ"
-    return f"{code}.KS"
+    # Pure numeric — determine market from code prefix
+    if code.isdigit():
+        if code[0] in _KOSDAQ_PREFIXES:
+            return f"{code}.KQ"
+        return f"{code}.KS"
+
+    # Fallback — try to resolve as a name
+    resolved, _ = resolve_stock_code(code)
+    return krx_to_yahoo_ticker(resolved)
 
 
 class YahooDataProvider(DataProvider):

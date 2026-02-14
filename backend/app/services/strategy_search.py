@@ -100,6 +100,12 @@ async def run_search(
     }
 
     try:
+        # ── Step 0: Resolve stock code ────────────────────────
+        from app.integrations.data.yahoo_provider import resolve_stock_code
+        resolved_code, resolved_name = resolve_stock_code(stock_code)
+        stock_code = resolved_code
+        stock_name = resolved_name
+
         # ── Step 1: Fetch data ──────────────────────────────────
         _update_job(job_id, step="fetching_data", progress=5)
         from app.integrations.data.factory import get_data_provider
@@ -228,6 +234,7 @@ async def run_search(
                     user_id=user_id,
                     name=f"{strat['strategy_type']}_{stock_code}",
                     stock_code=stock_code,
+                    stock_name=stock_name,
                     strategy_type=strat["strategy_type"],
                     indicators=[{"name": strat["strategy_type"]}],
                     parameters=params_clean,
