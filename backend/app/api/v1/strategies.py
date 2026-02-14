@@ -1,5 +1,5 @@
 import uuid
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -18,12 +18,15 @@ router = APIRouter()
 
 @router.get("", response_model=list[StrategyResponse])
 async def list_strategies(
+    stock_code: str | None = Query(None, description="Filter by stock code"),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    result = await db.execute(
-        select(Strategy).where(Strategy.user_id == user.id).order_by(Strategy.created_at.desc())
-    )
+    stmt = select(Strategy).where(Strategy.user_id == user.id)
+    if stock_code:
+        stmt = stmt.where(Strategy.stock_code == stock_code)
+    stmt = stmt.order_by(Strategy.created_at.desc())
+    result = await db.execute(stmt)
     strategies = result.scalars().all()
     return [StrategyResponse(id=str(s.id), **{
         k: getattr(s, k) for k in StrategyResponse.model_fields if k != "id"
