@@ -9,9 +9,11 @@ from app.models.trade import Trade
 from app.models.agent_session import AgentSession, AgentAction
 from app.models.agent_memory import AgentMemory
 from app.models.notification import Notification, NotificationPreference
+from app.models.ai_analysis import AIAnalysisResult
 
 __all__ = [
     "Base", "User", "ApiCredential", "Strategy", "Backtest",
     "Order", "Position", "Trade", "AgentSession", "AgentAction",
     "AgentMemory", "Notification", "NotificationPreference",
+    "AIAnalysisResult",
 ]

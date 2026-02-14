@@ -146,6 +146,9 @@ describe("StrategyDetailPage", () => {
       if (url.includes("/param-ranges")) {
         return Promise.resolve({ data: mockParamRanges });
       }
+      if (url.includes("/ai-reports")) {
+        return Promise.resolve({ data: [] });
+      }
       return Promise.resolve({ data: mockStrategyDetail });
     });
   });

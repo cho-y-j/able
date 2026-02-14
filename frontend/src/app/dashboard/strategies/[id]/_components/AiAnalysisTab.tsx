@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import api from "@/lib/api";
 import ScoreGauge from "./ScoreGauge";
 
@@ -39,11 +39,38 @@ interface AIAnalysis {
   };
 }
 
+interface SavedReport {
+  id: string;
+  stock_code: string;
+  stock_name: string | null;
+  decision: string;
+  confidence: number;
+  news_sentiment: string | null;
+  full_result: AIAnalysis;
+  created_at: string | null;
+}
+
 interface AiAnalysisTabProps {
   stockCode: string;
   stockName: string | null;
   dateRangeStart: string;
   dateRangeEnd: string;
+}
+
+function formatDateTime(iso: string | null): string {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString("ko-KR", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return iso;
+  }
 }
 
 export default function AiAnalysisTab({
@@ -55,7 +82,36 @@ export default function AiAnalysisTab({
   const [aiResult, setAiResult] = useState<AIAnalysis | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
+  const [loadingSaved, setLoadingSaved] = useState(true);
+  const [activeReportIdx, setActiveReportIdx] = useState(0);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Load saved reports on mount
+  useEffect(() => {
+    loadSavedReports();
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [stockCode]);
+
+  const loadSavedReports = async () => {
+    setLoadingSaved(true);
+    try {
+      const { data } = await api.get("/analysis/ai-reports", {
+        params: { stock_code: stockCode, limit: 10 },
+      });
+      setSavedReports(data);
+      if (data.length > 0) {
+        setAiResult(data[0].full_result);
+        setActiveReportIdx(0);
+      }
+    } catch {
+      // No saved reports or endpoint not available
+    } finally {
+      setLoadingSaved(false);
+    }
+  };
 
   const startAiAnalysis = useCallback(async () => {
     setAiLoading(true);
@@ -86,6 +142,8 @@ export default function AiAnalysisTab({
           if (pollRef.current) clearInterval(pollRef.current);
           setAiResult(job.result);
           setAiLoading(false);
+          // Reload saved reports to include newly saved one
+          loadSavedReports();
         } else if (job.status === "error") {
           if (pollRef.current) clearInterval(pollRef.current);
           setAiError(`AI 분석 실패: ${job.error}`);
@@ -97,6 +155,12 @@ export default function AiAnalysisTab({
         setAiLoading(false);
       }
     }, 2000);
+  };
+
+  // Switch to a saved report
+  const switchToReport = (idx: number) => {
+    setActiveReportIdx(idx);
+    setAiResult(savedReports[idx].full_result);
   };
 
   // Count buy vs sell signals
@@ -113,10 +177,62 @@ export default function AiAnalysisTab({
       : { buy: 0, sell: 0 };
   const totalSignals = signalCounts.buy + signalCounts.sell;
 
+  // Currently active saved report metadata
+  const activeReport = savedReports[activeReportIdx] ?? null;
+
   return (
     <div className="space-y-6">
-      {/* Initial state */}
-      {!aiResult && !aiLoading && !aiError && (
+      {/* Saved report history bar */}
+      {savedReports.length > 0 && !aiLoading && (
+        <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-sm font-semibold text-gray-400">
+              저장된 분석 이력 ({savedReports.length}건)
+            </h4>
+            <button
+              onClick={startAiAnalysis}
+              className="px-4 py-1.5 bg-purple-600 hover:bg-purple-700 rounded-lg text-xs font-medium transition-colors"
+            >
+              재분석
+            </button>
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {savedReports.map((report, idx) => (
+              <button
+                key={report.id}
+                onClick={() => switchToReport(idx)}
+                className={`flex-shrink-0 px-3 py-2 rounded-lg text-xs font-medium transition-colors border ${
+                  idx === activeReportIdx
+                    ? "bg-purple-600/20 border-purple-700 text-purple-300"
+                    : "bg-gray-800 border-gray-700 text-gray-400 hover:text-white"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`font-bold ${
+                      report.decision === "매수"
+                        ? "text-green-400"
+                        : report.decision === "매도"
+                          ? "text-red-400"
+                          : "text-yellow-400"
+                    }`}
+                  >
+                    {report.decision}
+                  </span>
+                  <span className="text-gray-600">|</span>
+                  <span>확신 {report.confidence}/10</span>
+                </div>
+                <div className="text-[10px] text-gray-600 mt-0.5">
+                  {formatDateTime(report.created_at)}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Initial state - no saved reports */}
+      {!aiResult && !aiLoading && !aiError && !loadingSaved && savedReports.length === 0 && (
         <div className="bg-gray-900 rounded-xl border border-gray-800 p-8 text-center">
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-purple-900/30 border border-purple-700/50 flex items-center justify-center">
             <svg
@@ -151,6 +267,16 @@ export default function AiAnalysisTab({
         </div>
       )}
 
+      {/* Loading saved reports */}
+      {loadingSaved && !aiResult && (
+        <div className="bg-gray-900 rounded-xl border border-gray-800 p-6 text-center">
+          <div className="flex items-center justify-center gap-2 text-gray-400 text-sm">
+            <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+            저장된 분석 결과 불러오는 중...
+          </div>
+        </div>
+      )}
+
       {/* Error state */}
       {aiError && !aiLoading && (
         <div className="bg-red-900/20 rounded-xl border border-red-800 p-6 text-center">
@@ -178,7 +304,6 @@ export default function AiAnalysisTab({
               Layer 1 (통계) → Layer 2 (팩트시트) → Layer 3 (DeepSeek AI)
             </p>
           </div>
-          {/* Skeleton cards */}
           {[1, 2, 3].map((i) => (
             <div
               key={i}
@@ -196,8 +321,15 @@ export default function AiAnalysisTab({
       )}
 
       {/* Results */}
-      {aiResult && (
+      {aiResult && !aiLoading && (
         <>
+          {/* Analysis date badge */}
+          {activeReport?.created_at && (
+            <div className="text-xs text-gray-600 text-right">
+              분석 일시: {formatDateTime(activeReport.created_at)}
+            </div>
+          )}
+
           {/* AI Decision Card */}
           <div
             className={`rounded-xl border p-6 ${
@@ -210,7 +342,6 @@ export default function AiAnalysisTab({
           >
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center gap-4">
-                {/* Decision + gauge */}
                 <div className="flex flex-col items-center">
                   <span
                     className={`text-3xl font-bold ${
@@ -278,7 +409,7 @@ export default function AiAnalysisTab({
           </div>
 
           {/* Current Signals */}
-          {Object.keys(aiResult.current_signals).length > 0 && (
+          {Object.keys(aiResult.current_signals || {}).length > 0 && (
             <div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
               <h4 className="text-sm font-semibold text-gray-400 mb-3">
                 현재 활성 시그널

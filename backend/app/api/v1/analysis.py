@@ -5,21 +5,22 @@ import logging
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from app.db.session import get_db
+from app.db.session import get_db, async_session_factory
 from app.models.user import User
 from app.models.strategy import Strategy
 from app.models.backtest import Backtest
+from app.models.ai_analysis import AIAnalysisResult
 from app.api.v1.deps import get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# In-memory analysis job store
+# In-memory analysis job store (for polling during computation)
 _analysis_jobs: dict[str, dict[str, Any]] = {}
 
 
@@ -55,6 +56,7 @@ async def create_ai_report(
         )
 
     job_id = str(uuid.uuid4())
+    user_id = user.id  # Capture for async task
     _analysis_jobs[job_id] = {
         "status": "running",
         "progress": 0,
@@ -103,6 +105,27 @@ async def create_ai_report(
                 result=result,
             )
 
+            # Save to DB (new session since request session is closed)
+            try:
+                ai_data = result.get("ai_analysis", {})
+                async with async_session_factory() as session:
+                    record = AIAnalysisResult(
+                        user_id=user_id,
+                        stock_code=resolved_code,
+                        stock_name=resolved_name,
+                        decision=ai_data.get("decision", "관망"),
+                        confidence=int(ai_data.get("confidence", 5)),
+                        news_sentiment=ai_data.get("news_sentiment"),
+                        reasoning=ai_data.get("reasoning"),
+                        risks=ai_data.get("risks"),
+                        full_result=result,
+                    )
+                    session.add(record)
+                    await session.commit()
+                    logger.info("AI analysis saved: %s / %s", resolved_code, record.id)
+            except Exception as save_err:
+                logger.error("Failed to save AI analysis: %s", save_err, exc_info=True)
+
         except Exception as e:
             logger.error("AI analysis failed: %s", e, exc_info=True)
             _analysis_jobs[job_id].update(status="error", error=str(e))
@@ -126,6 +149,43 @@ async def get_ai_report_status(job_id: str):
         "result": job.get("result"),
         "error": job.get("error"),
     }
+
+
+@router.get("/ai-reports")
+async def list_ai_reports(
+    stock_code: str = Query(..., description="Stock code to filter by"),
+    limit: int = Query(10, ge=1, le=50),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Get saved AI analysis reports for a stock."""
+    stmt = (
+        select(AIAnalysisResult)
+        .where(
+            AIAnalysisResult.user_id == user.id,
+            AIAnalysisResult.stock_code == stock_code,
+        )
+        .order_by(AIAnalysisResult.created_at.desc())
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    records = result.scalars().all()
+
+    return [
+        {
+            "id": str(r.id),
+            "stock_code": r.stock_code,
+            "stock_name": r.stock_name,
+            "decision": r.decision,
+            "confidence": r.confidence,
+            "news_sentiment": r.news_sentiment,
+            "reasoning": r.reasoning,
+            "risks": r.risks,
+            "full_result": r.full_result,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in records
+    ]
 
 
 @router.post("/strategies/{strategy_id}/rebacktest")
