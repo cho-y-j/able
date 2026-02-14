@@ -30,10 +30,16 @@ celery_app.conf.update(
         "tasks.run_agent_session": {"queue": "agents"},
         "tasks.scheduled_agent_run": {"queue": "agents"},
         "tasks.update_position_prices": {"queue": "periodic"},
+        "tasks.generate_daily_report": {"queue": "periodic"},
     },
 
     # Beat schedule for periodic tasks
     beat_schedule={
+        # Daily market intelligence report at 06:30 KST (before market open)
+        "daily-market-intelligence": {
+            "task": "tasks.generate_daily_report",
+            "schedule": crontab(minute=30, hour=6, day_of_week="1-5"),
+        },
         # Update position prices every 5 minutes during market hours (09:00-15:30 KST, Mon-Fri)
         "update-position-prices": {
             "task": "tasks.update_position_prices",

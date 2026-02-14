@@ -17,6 +17,7 @@ def generate_fact_sheet(
     stock_name: str | None = None,
     macro_data: dict | None = None,
     current_signals: dict | None = None,
+    daily_report: dict | None = None,
 ) -> str:
     """Generate a compressed fact sheet string for LLM consumption.
 
@@ -130,6 +131,37 @@ def generate_fact_sheet(
                 f"적중률 {c['accuracy']}%, 평균수익 {c['avg_return']:+.3f}% "
                 f"(시그널 {c['signal_count']}회)"
             )
+        lines.append("")
+
+    # ── Daily Market Context ──────────────────────────────────
+    if daily_report:
+        ai_summary = daily_report.get("ai_summary", {})
+        market_data = daily_report.get("market_data", {})
+        themes = daily_report.get("themes", [])
+
+        lines.append("■ 오늘의 시장 컨텍스트 (데일리 브리핑)")
+        if ai_summary.get("headline"):
+            lines.append(f"  헤드라인: {ai_summary['headline']}")
+        if ai_summary.get("market_sentiment"):
+            lines.append(f"  시장 심리: {ai_summary['market_sentiment']}")
+        if ai_summary.get("kospi_direction"):
+            lines.append(f"  코스피 전망: {ai_summary['kospi_direction']}")
+
+        # Key market data
+        for name in ["S&P 500", "나스닥", "VIX", "USD/KRW"]:
+            d = market_data.get(name, {})
+            if d and d.get("close"):
+                lines.append(f"  {name}: {d['close']:.2f} ({d.get('change_pct', 0):+.2f}%)")
+
+        # Check if stock is in any active theme
+        for theme in themes[:5]:
+            all_codes = [s.get("code", "") for s in theme.get("leader_stocks", [])]
+            all_codes += [s.get("code", "") for s in theme.get("follower_stocks", [])]
+            if stock_code in all_codes:
+                role = "대장주" if stock_code in [s.get("code", "") for s in theme.get("leader_stocks", [])] else "수혜주"
+                lines.append(f"  ★ 활성 테마: [{theme['name']}] — {role}")
+                for sig in theme.get("signals", [])[:2]:
+                    lines.append(f"    - {sig}")
         lines.append("")
 
     # ── Macro Correlations ────────────────────────────────────

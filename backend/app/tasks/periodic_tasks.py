@@ -140,6 +140,29 @@ def update_position_prices():
         db.close()
 
 
+@celery_app.task(name="tasks.generate_daily_report", soft_time_limit=600, time_limit=660)
+def generate_daily_report():
+    """Generate daily market intelligence report.
+
+    Runs at 06:30 KST (before market open).
+    Fetches global markets, detects themes, generates AI briefing.
+    No user auth required — uses system DeepSeek API key.
+    """
+    import asyncio
+
+    async def _run():
+        from app.services.market_intelligence import generate_daily_report as _gen
+        return await _gen()
+
+    try:
+        result = asyncio.run(_run())
+        logger.info("Daily report generated: %s", result)
+        return result
+    except Exception as e:
+        logger.error("Daily report generation failed: %s", e, exc_info=True)
+        return {"status": "error", "message": str(e)}
+
+
 @celery_app.task(name="tasks.scheduled_agent_run")
 def scheduled_agent_run():
     """Auto-start agent sessions for users with active auto-trading strategies.

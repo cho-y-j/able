@@ -1,12 +1,14 @@
-"""Market data endpoints - connected to KIS API."""
+"""Market data endpoints - connected to KIS API + Daily Market Intelligence."""
 
 import logging
-from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, HTTPException
+from datetime import datetime, date, timedelta
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.models.user import User
+from app.models.daily_report import DailyMarketReport
 from app.api.v1.deps import get_current_user
 from app.services.kis_service import get_kis_client
 from app.analysis.indicators.registry import calculate_indicator
@@ -312,3 +314,101 @@ async def get_indices(
             ],
             "error": str(e),
         }
+
+
+# ─── Daily Market Intelligence ──────────────────────────────────────
+
+
+@router.get("/daily-report")
+async def get_daily_report(
+    report_date: str = Query(None, description="Date in YYYY-MM-DD format (default: today)"),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Get the daily market intelligence report.
+
+    Free for all users — no token cost.
+    Returns the latest report or a specific date's report.
+    """
+    target_date = date.today()
+    if report_date:
+        try:
+            target_date = date.fromisoformat(report_date)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.")
+
+    result = await db.execute(
+        select(DailyMarketReport).where(DailyMarketReport.report_date == target_date)
+    )
+    report = result.scalar_one_or_none()
+
+    if not report:
+        # Try to find the most recent report
+        result = await db.execute(
+            select(DailyMarketReport)
+            .where(DailyMarketReport.status == "completed")
+            .order_by(DailyMarketReport.report_date.desc())
+            .limit(1)
+        )
+        report = result.scalar_one_or_none()
+
+    if not report:
+        raise HTTPException(status_code=404, detail="아직 생성된 데일리 리포트가 없습니다.")
+
+    return {
+        "id": str(report.id),
+        "report_date": str(report.report_date),
+        "status": report.status,
+        "market_data": report.market_data,
+        "themes": report.themes,
+        "ai_summary": report.ai_summary,
+        "created_at": report.created_at.isoformat() if report.created_at else None,
+    }
+
+
+@router.get("/daily-reports")
+async def list_daily_reports(
+    limit: int = Query(7, ge=1, le=30),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """List recent daily market intelligence reports."""
+    result = await db.execute(
+        select(DailyMarketReport)
+        .where(DailyMarketReport.status == "completed")
+        .order_by(DailyMarketReport.report_date.desc())
+        .limit(limit)
+    )
+    reports = result.scalars().all()
+
+    return [
+        {
+            "id": str(r.id),
+            "report_date": str(r.report_date),
+            "headline": r.ai_summary.get("headline", "") if r.ai_summary else "",
+            "market_sentiment": r.ai_summary.get("market_sentiment", "중립") if r.ai_summary else "중립",
+            "kospi_direction": r.ai_summary.get("kospi_direction", "보합") if r.ai_summary else "보합",
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in reports
+    ]
+
+
+@router.post("/daily-report/generate")
+async def trigger_daily_report(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Manually trigger daily report generation (admin/debug).
+
+    Normally runs automatically at 06:30 KST via Celery Beat.
+    """
+    import asyncio
+    from app.services.market_intelligence import generate_daily_report
+
+    try:
+        result = await generate_daily_report()
+        return result
+    except Exception as e:
+        logger.error("Manual daily report generation failed: %s", e)
+        raise HTTPException(status_code=500, detail=f"리포트 생성 실패: {str(e)}")

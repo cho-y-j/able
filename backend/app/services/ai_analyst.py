@@ -261,10 +261,35 @@ async def run_full_analysis(
         except Exception as e:
             logger.warning("Macro analysis skipped: %s", e)
 
+    # Fetch latest daily market report for context
+    daily_report_data = None
+    try:
+        from app.db.session import async_session_factory
+        from app.models.daily_report import DailyMarketReport
+        from sqlalchemy import select
+
+        async with async_session_factory() as session:
+            result = await session.execute(
+                select(DailyMarketReport)
+                .where(DailyMarketReport.status == "completed")
+                .order_by(DailyMarketReport.report_date.desc())
+                .limit(1)
+            )
+            report = result.scalar_one_or_none()
+            if report:
+                daily_report_data = {
+                    "ai_summary": report.ai_summary,
+                    "market_data": report.market_data,
+                    "themes": report.themes,
+                    "report_date": str(report.report_date),
+                }
+    except Exception as e:
+        logger.debug("Daily report fetch skipped: %s", e)
+
     # Layer 2: Fact Sheet
     fact_sheet = await asyncio.to_thread(
         generate_fact_sheet,
-        df, stock_code, stock_name, macro_data, current_signals,
+        df, stock_code, stock_name, macro_data, current_signals, daily_report_data,
     )
 
     # Layer 3: News + AI
