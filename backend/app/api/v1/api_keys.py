@@ -82,7 +82,7 @@ async def store_llm_credentials(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    if req.provider_name not in ("openai", "anthropic", "google"):
+    if req.provider_name not in ("openai", "anthropic", "google", "deepseek"):
         raise HTTPException(status_code=400, detail="Unsupported LLM provider")
 
     vault = get_vault()

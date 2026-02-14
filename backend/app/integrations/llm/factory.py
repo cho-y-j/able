@@ -7,11 +7,13 @@ from app.core.encryption import get_vault
 from app.integrations.llm.openai_provider import OpenAIProvider
 from app.integrations.llm.anthropic_provider import AnthropicProvider
 from app.integrations.llm.google_provider import GoogleProvider
+from app.integrations.llm.deepseek_provider import DeepSeekProvider
 
 PROVIDERS = {
     "openai": OpenAIProvider,
     "anthropic": AnthropicProvider,
     "google": GoogleProvider,
+    "deepseek": DeepSeekProvider,
 }
 
 SUPPORTED_MODELS = {}

@@ -22,8 +22,9 @@ export default function RegisterPage() {
     try {
       await register(email, password, displayName || undefined);
       router.push("/dashboard/settings");
-    } catch {
-      setError(t.auth.registerError);
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setError(detail || t.auth.registerError);
     } finally {
       setLoading(false);
     }
@@ -74,6 +75,7 @@ export default function RegisterPage() {
               required
               minLength={8}
             />
+            <p className="text-xs text-gray-500 mt-1">8자 이상, 대문자+소문자+숫자 포함</p>
           </div>
 
           <button

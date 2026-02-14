@@ -35,11 +35,9 @@ describe("SettingsPage", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Korea Investment Securities API")).toBeInTheDocument();
-      expect(screen.getByPlaceholderText("App Key")).toBeInTheDocument();
-      expect(screen.getByPlaceholderText("App Secret")).toBeInTheDocument();
-      expect(screen.getByPlaceholderText("e.g., 50123456-01")).toBeInTheDocument();
+      expect(screen.getByLabelText("App Key")).toBeInTheDocument();
+      expect(screen.getByLabelText("App Secret")).toBeInTheDocument();
       expect(screen.getByText("Paper Trading (recommended for testing)")).toBeInTheDocument();
-      expect(screen.getByText("Save KIS Credentials")).toBeInTheDocument();
     });
   });
 
@@ -50,8 +48,6 @@ describe("SettingsPage", () => {
       expect(screen.getByText("LLM API Configuration")).toBeInTheDocument();
       expect(screen.getByText("Provider")).toBeInTheDocument();
       expect(screen.getByText("Model")).toBeInTheDocument();
-      expect(screen.getByPlaceholderText("API Key (e.g., sk-...)")).toBeInTheDocument();
-      expect(screen.getByText("Save LLM API Key")).toBeInTheDocument();
     });
   });
 
@@ -96,7 +92,6 @@ describe("SettingsPage", () => {
       expect(screen.getByText("OpenAI Key")).toBeInTheDocument();
       expect(screen.getByText("abc***xyz")).toBeInTheDocument();
       expect(screen.getByText("sk-***def")).toBeInTheDocument();
-      // "gpt-4o" appears both in the saved keys list and the LLM model dropdown
       const gpt4oMatches = screen.getAllByText("gpt-4o");
       expect(gpt4oMatches.length).toBeGreaterThanOrEqual(1);
     });
@@ -109,13 +104,13 @@ describe("SettingsPage", () => {
     render(<SettingsPage />);
 
     await waitFor(() => {
-      expect(screen.getByPlaceholderText("App Key")).toBeInTheDocument();
+      expect(screen.getByLabelText("App Key")).toBeInTheDocument();
     });
 
-    await user.type(screen.getByPlaceholderText("App Key"), "my-app-key");
-    await user.type(screen.getByPlaceholderText("App Secret"), "my-app-secret");
-    await user.type(screen.getByPlaceholderText("e.g., 50123456-01"), "50123456-01");
-    await user.click(screen.getByText("Save KIS Credentials"));
+    await user.type(screen.getByLabelText("App Key"), "my-app-key");
+    await user.type(screen.getByLabelText("App Secret"), "my-app-secret");
+    await user.type(screen.getByLabelText(/계좌번호/), "50123456-01");
+    await user.click(screen.getByText("KIS API 키 저장"));
 
     await waitFor(() => {
       expect(mockedApi.post).toHaveBeenCalledWith("/keys/kis", {
@@ -134,11 +129,11 @@ describe("SettingsPage", () => {
     render(<SettingsPage />);
 
     await waitFor(() => {
-      expect(screen.getByPlaceholderText("API Key (e.g., sk-...)")).toBeInTheDocument();
+      expect(screen.getByLabelText("API Key")).toBeInTheDocument();
     });
 
-    await user.type(screen.getByPlaceholderText("API Key (e.g., sk-...)"), "sk-test-key-123");
-    await user.click(screen.getByText("Save LLM API Key"));
+    await user.type(screen.getByLabelText("API Key"), "sk-test-key-123");
+    await user.click(screen.getByText(/^OpenAI API 키 저장$/));
 
     await waitFor(() => {
       expect(mockedApi.post).toHaveBeenCalledWith("/keys/llm", {
@@ -156,36 +151,38 @@ describe("SettingsPage", () => {
     render(<SettingsPage />);
 
     await waitFor(() => {
-      expect(screen.getByPlaceholderText("App Key")).toBeInTheDocument();
+      expect(screen.getByLabelText("App Key")).toBeInTheDocument();
     });
 
-    await user.type(screen.getByPlaceholderText("App Key"), "my-app-key");
-    await user.type(screen.getByPlaceholderText("App Secret"), "my-app-secret");
-    await user.type(screen.getByPlaceholderText("e.g., 50123456-01"), "50123456-01");
-    await user.click(screen.getByText("Save KIS Credentials"));
+    await user.type(screen.getByLabelText("App Key"), "my-app-key");
+    await user.type(screen.getByLabelText("App Secret"), "my-app-secret");
+    await user.type(screen.getByLabelText(/계좌번호/), "50123456-01");
+    await user.click(screen.getByText("KIS API 키 저장"));
 
     await waitFor(() => {
-      expect(screen.getByText("KIS credentials saved successfully!")).toBeInTheDocument();
+      expect(screen.getByText(/KIS API 키가 저장되었습니다/)).toBeInTheDocument();
     });
   });
 
   it("shows error message on KIS save failure", async () => {
     const user = userEvent.setup();
-    mockedApi.post.mockRejectedValue(new Error("Network error"));
+    mockedApi.post.mockRejectedValue({
+      response: { data: { detail: "Invalid credentials" } },
+    });
 
     render(<SettingsPage />);
 
     await waitFor(() => {
-      expect(screen.getByPlaceholderText("App Key")).toBeInTheDocument();
+      expect(screen.getByLabelText("App Key")).toBeInTheDocument();
     });
 
-    await user.type(screen.getByPlaceholderText("App Key"), "bad-key");
-    await user.type(screen.getByPlaceholderText("App Secret"), "bad-secret");
-    await user.type(screen.getByPlaceholderText("e.g., 50123456-01"), "00000000-00");
-    await user.click(screen.getByText("Save KIS Credentials"));
+    await user.type(screen.getByLabelText("App Key"), "bad-key");
+    await user.type(screen.getByLabelText("App Secret"), "bad-secret");
+    await user.type(screen.getByLabelText(/계좌번호/), "00000000-00");
+    await user.click(screen.getByText("KIS API 키 저장"));
 
     await waitFor(() => {
-      expect(screen.getByText("Failed to save KIS credentials")).toBeInTheDocument();
+      expect(screen.getByText(/KIS 저장 실패/)).toBeInTheDocument();
     });
   });
 });
