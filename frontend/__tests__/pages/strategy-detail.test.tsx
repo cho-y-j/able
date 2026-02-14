@@ -192,7 +192,7 @@ describe("StrategyDetailPage", () => {
       // 1.65.toFixed(1) = "1.6" due to JS floating point rounding
       expect(screen.getByText("+1.6")).toBeInTheDocument();
 
-      expect(screen.getByText("최대 낙폭")).toBeInTheDocument();
+      expect(screen.getByText("최대 낙폭 (MDD)")).toBeInTheDocument();
       expect(screen.getByText("-14.20%")).toBeInTheDocument();
 
       expect(screen.getByText("승률")).toBeInTheDocument();
@@ -320,18 +320,18 @@ describe("StrategyDetailPage", () => {
 
     await waitFor(() => {
       // WFA section
-      expect(screen.getByText("Walk-Forward Analysis")).toBeInTheDocument();
+      expect(screen.getByText(/Walk-Forward Analysis/)).toBeInTheDocument();
       expect(screen.getByText("78.3")).toBeInTheDocument(); // wfa_score
       expect(screen.getByText("85.1")).toBeInTheDocument(); // stability
       expect(screen.getByText("1.42")).toBeInTheDocument(); // mean_sharpe
       expect(screen.getByText("+15.60%")).toBeInTheDocument(); // mean_return
 
       // Monte Carlo section
-      expect(screen.getByText("Monte Carlo Simulation")).toBeInTheDocument();
+      expect(screen.getByText(/Monte Carlo Simulation/)).toBeInTheDocument();
       expect(screen.getByText("72.5%")).toBeInTheDocument(); // mc_score
 
       // OOS section
-      expect(screen.getByText("Out-of-Sample 검증")).toBeInTheDocument();
+      expect(screen.getByText(/Out-of-Sample 검증/)).toBeInTheDocument();
       expect(screen.getByText("68.9")).toBeInTheDocument(); // oos_score
 
       // Degradation stats

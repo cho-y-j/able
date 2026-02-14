@@ -186,19 +186,33 @@ export default function StrategyDetailPage() {
       {/* Tab: Overview */}
       {tab === "overview" && m && (
         <div className="space-y-6">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <MetricCard label="총 수익률" value={m.total_return} suffix="%" />
-            <MetricCard label="연 수익률" value={m.annual_return} suffix="%" />
-            <MetricCard label="샤프 비율" value={m.sharpe_ratio} suffix="" />
-            <MetricCard label="소르티노 비율" value={m.sortino_ratio} suffix="" />
-            <MetricCard label="최대 낙폭" value={m.max_drawdown} suffix="%" />
-            <MetricCard label="승률" value={m.win_rate} suffix="%" color="text-white" />
-            <MetricCard label="수익 팩터" value={m.profit_factor} suffix="x" color="text-white" />
-            <MetricCard label="총 거래수" value={m.total_trades} suffix=" trades" color="text-white" />
-            <MetricCard label="칼마 비율" value={m.calmar_ratio} suffix="" />
-            <MetricCard label="WFA 점수" value={v?.wfa_score ?? null} suffix="" color="text-blue-400" />
-            <MetricCard label="MC 수익 확률" value={v?.mc_score ?? null} suffix="%" color="text-purple-400" />
-            <MetricCard label="OOS 점수" value={v?.oos_score ?? null} suffix="" color="text-cyan-400" />
+          <div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
+            <h4 className="text-sm font-semibold text-gray-400 mb-3">백테스트 성과</h4>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <MetricCard label="총 수익률" value={m.total_return} suffix="%" />
+              <MetricCard label="연 수익률" value={m.annual_return} suffix="%" />
+              <MetricCard label="샤프 비율" value={m.sharpe_ratio} suffix="" />
+              <MetricCard label="소르티노 비율" value={m.sortino_ratio} suffix="" />
+              <MetricCard label="최대 낙폭 (MDD)" value={m.max_drawdown} suffix="%" />
+              <MetricCard label="승률" value={m.win_rate} suffix="%" color="text-white" />
+              <MetricCard label="수익 팩터" value={m.profit_factor} suffix="x" color="text-white" />
+              <MetricCard label="총 거래수" value={m.total_trades} suffix=" trades" color="text-white" />
+            </div>
+            <p className="text-xs text-gray-600 mt-3">
+              샤프 비율: 1 이상 양호, 2 이상 우수 | 승률: 50% 이상 권장 | MDD: -20% 이내 권장 | 수익팩터: 1.5 이상 권장
+            </p>
+          </div>
+          <div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
+            <h4 className="text-sm font-semibold text-gray-400 mb-3">검증 점수 (전략 신뢰도)</h4>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <MetricCard label="칼마 비율" value={m.calmar_ratio} suffix="" />
+              <MetricCard label="WFA 점수" value={v?.wfa_score ?? null} suffix="" color="text-blue-400" />
+              <MetricCard label="MC 수익 확률" value={v?.mc_score ?? null} suffix="%" color="text-purple-400" />
+              <MetricCard label="OOS 점수" value={v?.oos_score ?? null} suffix="" color="text-cyan-400" />
+            </div>
+            <p className="text-xs text-gray-600 mt-3">
+              WFA: 다양한 구간에서의 안정성 | MC: 운이 아닌 실력 확률 | OOS: 미래 데이터 적응력
+            </p>
           </div>
         </div>
       )}
@@ -279,7 +293,8 @@ export default function StrategyDetailPage() {
         <div className="space-y-6">
           {/* WFA */}
           <div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
-            <h3 className="text-lg font-semibold mb-4">Walk-Forward Analysis</h3>
+            <h3 className="text-lg font-semibold mb-1">Walk-Forward Analysis (전진 분석)</h3>
+            <p className="text-xs text-gray-500 mb-4">데이터를 여러 구간으로 나눠 각각 훈련/검증을 반복합니다. 점수가 높을수록 다양한 시장 상황에서 안정적입니다.</p>
             <div className="grid grid-cols-4 gap-4">
               <div className="bg-gray-800 rounded-lg p-4 text-center">
                 <div className="text-xs text-gray-500 mb-1">WFA Score</div>
@@ -302,7 +317,8 @@ export default function StrategyDetailPage() {
 
           {/* Monte Carlo */}
           <div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
-            <h3 className="text-lg font-semibold mb-4">Monte Carlo Simulation</h3>
+            <h3 className="text-lg font-semibold mb-1">Monte Carlo Simulation (몬테카를로 시뮬레이션)</h3>
+            <p className="text-xs text-gray-500 mb-4">거래 순서를 1,000번 무작위로 섞어 운이 아닌 실력인지 검증합니다. 수익 확률이 50% 이상이면 통계적으로 유의미합니다.</p>
             {vr.mc ? (
               <>
                 <div className="grid grid-cols-4 gap-4 mb-4">
@@ -350,7 +366,8 @@ export default function StrategyDetailPage() {
 
           {/* OOS */}
           <div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
-            <h3 className="text-lg font-semibold mb-4">Out-of-Sample 검증</h3>
+            <h3 className="text-lg font-semibold mb-1">Out-of-Sample 검증 (미래 데이터 테스트)</h3>
+            <p className="text-xs text-gray-500 mb-4">전략을 만든 데이터(훈련)와 처음 보는 데이터(검증)를 비교합니다. 유지율이 100%에 가까울수록 과적합 위험이 낮습니다.</p>
             <div className="grid grid-cols-4 gap-4 mb-4">
               <div className="bg-gray-800 rounded-lg p-4 text-center">
                 <div className="text-xs text-gray-500 mb-1">OOS Score</div>

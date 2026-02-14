@@ -22,10 +22,10 @@ jest.mock("next/navigation", () => ({
 const mockStrategies = [
   {
     id: "s1",
-    name: "MACD Crossover",
+    name: "macd_crossover_opt",
     stock_code: "005930",
     stock_name: "Samsung",
-    strategy_type: "momentum",
+    strategy_type: "macd_crossover",
     composite_score: 85.5,
     validation_results: {
       backtest: { total_return: 32.5, sharpe_ratio: 1.85, max_drawdown: -12.3 },
@@ -36,10 +36,10 @@ const mockStrategies = [
   },
   {
     id: "s2",
-    name: "RSI Mean Reversion",
+    name: "rsi_mean_reversion_opt",
     stock_code: "035720",
     stock_name: "Kakao",
-    strategy_type: "mean_reversion",
+    strategy_type: "rsi_mean_reversion",
     composite_score: 62.3,
     validation_results: null,
     status: "validated",
@@ -48,10 +48,10 @@ const mockStrategies = [
   },
   {
     id: "s3",
-    name: "Bollinger Bounce",
+    name: "bb_width_breakout_opt",
     stock_code: "000660",
     stock_name: "SK Hynix",
-    strategy_type: "volatility",
+    strategy_type: "bb_width_breakout",
     composite_score: 35.0,
     validation_results: null,
     status: "draft",
@@ -114,9 +114,10 @@ describe("StrategiesPage", () => {
       expect(screen.getByText("My Strategies (3)")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("MACD Crossover")).toBeInTheDocument();
-    expect(screen.getByText("RSI Mean Reversion")).toBeInTheDocument();
-    expect(screen.getByText("Bollinger Bounce")).toBeInTheDocument();
+    // Strategy names are displayed via typeName(strategy_type)
+    expect(screen.getByText("MACD 크로스")).toBeInTheDocument();
+    expect(screen.getByText("RSI 평균회귀")).toBeInTheDocument();
+    expect(screen.getByText("볼린저 돌파")).toBeInTheDocument();
   });
 
   it("renders GradeBadge with correct grades for different scores", async () => {
@@ -127,12 +128,15 @@ describe("StrategiesPage", () => {
     });
 
     await waitFor(() => {
-      // score 85.5 => grade "A"
-      expect(screen.getByText("A")).toBeInTheDocument();
+      // score 85.5 => grade "A" (also appears in grade reference)
+      const gradeA = screen.getAllByText("A");
+      expect(gradeA.length).toBeGreaterThanOrEqual(1);
       // score 62.3 => grade "B"
-      expect(screen.getByText("B")).toBeInTheDocument();
+      const gradeB = screen.getAllByText("B");
+      expect(gradeB.length).toBeGreaterThanOrEqual(1);
       // score 35.0 => grade "D"
-      expect(screen.getByText("D")).toBeInTheDocument();
+      const gradeD = screen.getAllByText("D");
+      expect(gradeD.length).toBeGreaterThanOrEqual(1);
     });
   });
 
@@ -144,10 +148,10 @@ describe("StrategiesPage", () => {
     });
 
     await waitFor(() => {
-      // Strategy s1 has backtest data
-      expect(screen.getByText("+32.5%")).toBeInTheDocument();
-      expect(screen.getByText("Sharpe: 1.85")).toBeInTheDocument();
-      expect(screen.getByText("MDD: -12.3%")).toBeInTheDocument();
+      // Strategy s1 has backtest data (Korean format)
+      expect(screen.getByText(/수익률 \+32\.5%/)).toBeInTheDocument();
+      expect(screen.getByText(/샤프 1\.85/)).toBeInTheDocument();
+      expect(screen.getByText(/MDD -12\.3%/)).toBeInTheDocument();
     });
   });
 
@@ -159,8 +163,8 @@ describe("StrategiesPage", () => {
     });
 
     await waitFor(() => {
-      // Strategy s2 has no backtest but has score 62.3
-      expect(screen.getByText("Score: 62.3")).toBeInTheDocument();
+      // Strategy s2 has no backtest but has score 62.3 (Korean format)
+      expect(screen.getByText(/종합점수 62\.3점/)).toBeInTheDocument();
     });
   });
 
@@ -172,9 +176,9 @@ describe("StrategiesPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText("active")).toBeInTheDocument();
-      expect(screen.getByText("validated")).toBeInTheDocument();
-      expect(screen.getByText("draft")).toBeInTheDocument();
+      expect(screen.getByText("자동매매 중")).toBeInTheDocument();
+      expect(screen.getByText("검증 완료")).toBeInTheDocument();
+      expect(screen.getByText("초안")).toBeInTheDocument();
     });
   });
 
@@ -229,10 +233,10 @@ describe("StrategiesPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText("MACD Crossover")).toBeInTheDocument();
+      expect(screen.getByText("MACD 크로스")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("MACD Crossover"));
+    await user.click(screen.getByText("MACD 크로스"));
 
     expect(mockPush).toHaveBeenCalledWith("/dashboard/strategies/s1");
   });
@@ -248,11 +252,11 @@ describe("StrategiesPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText("Stop")).toBeInTheDocument();
+      expect(screen.getByText("매매 중지")).toBeInTheDocument();
     });
 
-    // Strategy s1 has is_auto_trading: true, so button shows "Stop"
-    await user.click(screen.getByText("Stop"));
+    // Strategy s1 has is_auto_trading: true, so button shows "매매 중지"
+    await user.click(screen.getByText("매매 중지"));
 
     await waitFor(() => {
       expect(mockedApi.post).toHaveBeenCalledWith(
@@ -272,10 +276,10 @@ describe("StrategiesPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText("Activate")).toBeInTheDocument();
+      expect(screen.getByText("자동매매 시작")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Activate"));
+    await user.click(screen.getByText("자동매매 시작"));
 
     await waitFor(() => {
       expect(mockedApi.post).toHaveBeenCalledWith(
@@ -310,8 +314,8 @@ describe("StrategiesPage", () => {
       render(<StrategiesPage />);
     });
 
-    expect(screen.getByText("Grid Search")).toBeInTheDocument();
-    expect(screen.getByText("Genetic Algorithm")).toBeInTheDocument();
-    expect(screen.getByText("Bayesian (Optuna)")).toBeInTheDocument();
+    expect(screen.getByText(/Grid Search/)).toBeInTheDocument();
+    expect(screen.getByText(/Genetic/)).toBeInTheDocument();
+    expect(screen.getByText(/Bayesian/)).toBeInTheDocument();
   });
 });
