@@ -18,8 +18,12 @@ class KISClient:
 
     def __init__(self, app_key: str, app_secret: str, account_number: str, is_paper: bool = True):
         self.account_number = account_number
-        self.account_prefix = account_number[:8]
-        self.account_suffix = account_number[8:]
+        # Account format: "50162896-01" → prefix="50162896", suffix="01"
+        if "-" in account_number:
+            self.account_prefix, self.account_suffix = account_number.split("-", 1)
+        else:
+            self.account_prefix = account_number[:8]
+            self.account_suffix = account_number[8:]
         self.is_paper = is_paper
         self.base_url = PAPER_BASE_URL if is_paper else REAL_BASE_URL
         self.token_manager = KISTokenManager(app_key, app_secret, is_paper)

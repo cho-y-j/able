@@ -13,6 +13,8 @@ from app.schemas.api_key import (
 from app.core.encryption import get_vault
 from app.core.audit import audit_key_event, AuditAction
 from app.api.v1.deps import get_current_user
+from app.services.kis_service import clear_client_cache
+from app.integrations.kis.auth import clear_token_cache
 
 router = APIRouter()
 
@@ -60,6 +62,10 @@ async def store_kis_credentials(
     await db.flush()
 
     audit_key_event(AuditAction.KEY_CREATED, str(user.id), str(credential.id), "kis")
+
+    # Invalidate cached KIS client and token for this user
+    clear_client_cache(user.id)
+    clear_token_cache()
 
     return ApiKeyResponse(
         id=str(credential.id),
@@ -293,6 +299,9 @@ async def delete_key(
     if not credential:
         raise HTTPException(status_code=404, detail="API key not found")
     audit_key_event(AuditAction.KEY_DELETED, str(user.id), key_id, credential.service_type)
+    if credential.service_type == "kis":
+        clear_client_cache(user.id)
+        clear_token_cache()
     await db.delete(credential)
 
 
@@ -330,6 +339,9 @@ async def rotate_key(
         raise HTTPException(status_code=500, detail=f"Rotation failed: {str(e)}")
 
     audit_key_event(AuditAction.KEY_ROTATED, str(user.id), key_id, credential.service_type)
+    if credential.service_type == "kis":
+        clear_client_cache(user.id)
+        clear_token_cache()
 
     try:
         raw_key = vault.decrypt(credential.encrypted_key)
