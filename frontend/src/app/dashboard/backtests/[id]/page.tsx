@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import api from "@/lib/api";
+import { useI18n } from "@/i18n";
 import {
   CHART_COLORS,
   DEFAULT_CHART_OPTIONS,
@@ -47,6 +48,7 @@ interface MCResult {
 }
 
 export default function BacktestDetailPage() {
+  const { t } = useI18n();
   const params = useParams();
   const backtestId = params.id as string;
 
@@ -143,7 +145,7 @@ export default function BacktestDetailPage() {
     if (activeTab === "equity") renderEquityChart();
   }, [activeTab, renderEquityChart]);
 
-  if (loading) return <div className="text-center py-20 text-gray-500">Loading...</div>;
+  if (loading) return <div className="text-center py-20 text-gray-500">{t.common.loading}</div>;
   if (!bt) return <div className="text-center py-20 text-red-400">Backtest not found</div>;
 
   const m = bt.metrics;
@@ -154,7 +156,7 @@ export default function BacktestDetailPage() {
       {/* Header */}
       <div className="flex items-center gap-4 mb-6">
         <Link href="/dashboard/backtests" className="text-gray-400 hover:text-white text-sm">
-          ← Backtests
+          ← {t.backtests.title}
         </Link>
         <h2 className="text-2xl font-bold">Backtest Detail</h2>
         <span className={`px-2 py-1 rounded text-xs font-medium ${
@@ -166,14 +168,14 @@ export default function BacktestDetailPage() {
 
       {/* Metrics Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-6">
-        <MetricCard label="Total Return" value={formatPct(m.total_return)} color={metricColor(m.total_return)} />
-        <MetricCard label="Annual Return" value={formatPct(m.annual_return)} color={metricColor(m.annual_return)} />
-        <MetricCard label="Sharpe Ratio" value={m.sharpe_ratio?.toFixed(2)} color={metricColor(m.sharpe_ratio)} />
+        <MetricCard label={t.strategies.totalReturn} value={formatPct(m.total_return)} color={metricColor(m.total_return)} />
+        <MetricCard label={t.backtests.annualReturn} value={formatPct(m.annual_return)} color={metricColor(m.annual_return)} />
+        <MetricCard label={t.backtests.sharpeRatio} value={m.sharpe_ratio?.toFixed(2)} color={metricColor(m.sharpe_ratio)} />
         <MetricCard label="Sortino Ratio" value={m.sortino_ratio?.toFixed(2)} color={metricColor(m.sortino_ratio)} />
-        <MetricCard label="Max Drawdown" value={formatPct(m.max_drawdown)} color="text-red-400" />
-        <MetricCard label="Win Rate" value={`${m.win_rate?.toFixed(1)}%`} />
-        <MetricCard label="Profit Factor" value={m.profit_factor?.toFixed(2)} color={metricColor((m.profit_factor || 0) - 1)} />
-        <MetricCard label="Total Trades" value={String(m.total_trades || 0)} />
+        <MetricCard label={t.backtests.maxDrawdown} value={formatPct(m.max_drawdown)} color="text-red-400" />
+        <MetricCard label={t.backtests.winRate} value={`${m.win_rate?.toFixed(1)}%`} />
+        <MetricCard label={t.backtests.profitFactor} value={m.profit_factor?.toFixed(2)} color={metricColor((m.profit_factor || 0) - 1)} />
+        <MetricCard label={t.backtests.totalTrades} value={String(m.total_trades || 0)} />
         <MetricCard label="Calmar Ratio" value={m.calmar_ratio?.toFixed(2)} color={metricColor(m.calmar_ratio)} />
         <MetricCard label="WFA Score" value={v.wfa_score?.toFixed(0)} color={scoreColor(v.wfa_score)} />
         <MetricCard label="MC Score" value={v.mc_score?.toFixed(0)} color={scoreColor(v.mc_score)} />
@@ -192,7 +194,7 @@ export default function BacktestDetailPage() {
                 : "bg-gray-800 text-gray-400 hover:text-white"
             }`}
           >
-            {tab === "equity" ? "Equity Curve" : tab === "trades" ? "Trade Log" : "Monte Carlo"}
+            {tab === "equity" ? t.backtests.equityCurve : tab === "trades" ? t.backtests.tradeLog : t.backtests.monteCarlo}
           </button>
         ))}
         {!mc && (
