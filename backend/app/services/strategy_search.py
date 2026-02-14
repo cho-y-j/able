@@ -4,11 +4,14 @@ Runs the full pipeline: data fetch → signal generation → optimization →
 validation → scoring → DB persistence, using FastAPI BackgroundTasks.
 """
 
+import json
 import logging
 import uuid
 import warnings
 from datetime import datetime, timezone
 from typing import Any
+
+import numpy as np
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -56,6 +59,23 @@ def _build_param_grid(param_space: dict) -> dict:
         elif spec["type"] == "categorical":
             grid[name] = spec.get("choices", [])
     return grid
+
+
+def _sanitize(obj: Any) -> Any:
+    """Recursively convert numpy types to native Python for JSON serialization."""
+    if isinstance(obj, dict):
+        return {k: _sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_sanitize(v) for v in obj]
+    if isinstance(obj, np.integer):
+        return int(obj)
+    if isinstance(obj, np.floating):
+        return float(obj)
+    if isinstance(obj, np.bool_):
+        return bool(obj)
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    return obj
 
 
 async def run_search(
@@ -186,6 +206,23 @@ async def run_search(
                     "wfa_score": wfa_result.get("wfa_score", 0),
                 }, wfa_result=wfa_result)
 
+                # Sanitize all data for JSON serialization
+                params_clean = _sanitize(strat["params"])
+                metrics_clean = _sanitize(strat["metrics"])
+                vr_clean = _sanitize({
+                    "wfa": {k: v for k, v in wfa_result.items() if k != "windows"},
+                    "mc": {k: v for k, v in mc_result.items() if k not in ("confidence_bands", "equity_paths")},
+                    "oos": {k: v for k, v in oos_result.items() if k not in ("in_sample", "out_of_sample")},
+                    "oos_detail": {
+                        "in_sample": oos_result.get("in_sample", {}),
+                        "out_of_sample": oos_result.get("out_of_sample", {}),
+                        "degradation": oos_result.get("degradation", {}),
+                    },
+                    "backtest": metrics_clean,
+                })
+                eq_curve = _sanitize(bt.equity_curve) if bt else None
+                trade_log = _sanitize(bt.trade_log) if bt else None
+
                 # Save Strategy
                 strategy = Strategy(
                     user_id=user_id,
@@ -193,21 +230,12 @@ async def run_search(
                     stock_code=stock_code,
                     strategy_type=strat["strategy_type"],
                     indicators=[{"name": strat["strategy_type"]}],
-                    parameters=strat["params"],
+                    parameters=params_clean,
                     entry_rules={"signal": strat["strategy_type"]},
                     exit_rules={"signal": strat["strategy_type"]},
                     risk_params={"stop_loss_pct": 3.0, "take_profit_pct": 6.0},
-                    composite_score=composite["total_score"],
-                    validation_results={
-                        "wfa": {k: v for k, v in wfa_result.items() if k != "windows"},
-                        "mc": {k: v for k, v in mc_result.items() if k not in ("confidence_bands", "equity_paths")},
-                        "oos": {k: v for k, v in oos_result.items() if k not in ("in_sample", "out_of_sample")},
-                        "oos_detail": {
-                            "in_sample": oos_result.get("in_sample", {}),
-                            "out_of_sample": oos_result.get("out_of_sample", {}),
-                            "degradation": oos_result.get("degradation", {}),
-                        },
-                    },
+                    composite_score=float(composite["total_score"]),
+                    validation_results=vr_clean,
                     status="validated",
                 )
                 db.add(strategy)
@@ -218,23 +246,23 @@ async def run_search(
                     strategy_id=strategy.id,
                     user_id=user_id,
                     status="completed",
-                    parameters=strat["params"],
+                    parameters=params_clean,
                     date_range_start=df.index[0].date(),
                     date_range_end=df.index[-1].date(),
-                    total_return=strat["metrics"].get("total_return", 0),
-                    annual_return=strat["metrics"].get("annual_return", 0),
-                    sharpe_ratio=strat["metrics"].get("sharpe_ratio", 0),
-                    sortino_ratio=strat["metrics"].get("sortino_ratio", 0),
-                    max_drawdown=strat["metrics"].get("max_drawdown", 0),
-                    win_rate=strat["metrics"].get("win_rate", 0),
-                    profit_factor=strat["metrics"].get("profit_factor", 0),
-                    total_trades=strat["metrics"].get("total_trades", 0),
-                    calmar_ratio=strat["metrics"].get("calmar_ratio", 0),
-                    wfa_score=wfa_result.get("wfa_score", 0),
-                    mc_score=mc_score,
-                    oos_score=oos_score,
-                    equity_curve=bt.equity_curve if bt else None,
-                    trade_log=bt.trade_log if bt else None,
+                    total_return=float(metrics_clean.get("total_return", 0)),
+                    annual_return=float(metrics_clean.get("annual_return", 0)),
+                    sharpe_ratio=float(metrics_clean.get("sharpe_ratio", 0)),
+                    sortino_ratio=float(metrics_clean.get("sortino_ratio", 0)),
+                    max_drawdown=float(metrics_clean.get("max_drawdown", 0)),
+                    win_rate=float(metrics_clean.get("win_rate", 0)),
+                    profit_factor=float(metrics_clean.get("profit_factor", 0)),
+                    total_trades=int(metrics_clean.get("total_trades", 0)),
+                    calmar_ratio=float(metrics_clean.get("calmar_ratio", 0)),
+                    wfa_score=float(wfa_result.get("wfa_score", 0)),
+                    mc_score=float(mc_score),
+                    oos_score=float(oos_score),
+                    equity_curve=eq_curve,
+                    trade_log=trade_log,
                     completed_at=datetime.now(timezone.utc),
                 )
                 db.add(backtest)
@@ -243,13 +271,13 @@ async def run_search(
                     "id": str(strategy.id),
                     "name": strategy.name,
                     "strategy_type": strat["strategy_type"],
-                    "score": composite["total_score"],
+                    "score": float(composite["total_score"]),
                     "grade": composite["grade"],
-                    "total_return": strat["metrics"].get("total_return", 0),
-                    "sharpe_ratio": strat["metrics"].get("sharpe_ratio", 0),
-                    "max_drawdown": strat["metrics"].get("max_drawdown", 0),
-                    "mc_score": mc_score,
-                    "oos_score": oos_score,
+                    "total_return": float(metrics_clean.get("total_return", 0)),
+                    "sharpe_ratio": float(metrics_clean.get("sharpe_ratio", 0)),
+                    "max_drawdown": float(metrics_clean.get("max_drawdown", 0)),
+                    "mc_score": float(mc_score),
+                    "oos_score": float(oos_score),
                 })
             except Exception as e:
                 logger.warning("Validation failed for %s: %s", strat["strategy_type"], e)
