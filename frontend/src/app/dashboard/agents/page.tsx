@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import api from "@/lib/api";
+import { useI18n } from "@/i18n";
 
 interface AgentStatus {
   session_id: string;
@@ -23,6 +24,7 @@ const AGENTS = [
 ];
 
 export default function AgentsPage() {
+  const { t } = useI18n();
   const [status, setStatus] = useState<AgentStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [polling, setPolling] = useState(false);
@@ -77,7 +79,7 @@ export default function AgentsPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-2xl font-bold">AI Agent Orchestration Team</h2>
+          <h2 className="text-2xl font-bold">{t.agents.title}</h2>
           <p className="text-gray-500 text-sm mt-1">
             Team Leader coordinates 5 specialized agents for automated trading
           </p>
@@ -85,12 +87,12 @@ export default function AgentsPage() {
         {isActive ? (
           <button onClick={stopSession}
             className="px-6 py-2 bg-red-600 hover:bg-red-700 rounded-lg font-medium transition-colors">
-            Stop Session
+            {t.agents.stopAgent}
           </button>
         ) : (
           <button onClick={startSession} disabled={loading}
             className="px-6 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-700 rounded-lg font-medium transition-colors">
-            {loading ? "Starting..." : "Start Full Cycle"}
+            {loading ? t.common.loading : t.agents.startAgent}
           </button>
         )}
       </div>
@@ -141,7 +143,7 @@ export default function AgentsPage() {
 
       {/* Activity Log */}
       <div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
-        <h3 className="text-lg font-semibold mb-4">Activity Log</h3>
+        <h3 className="text-lg font-semibold mb-4">{t.agents.activityLog}</h3>
         {(status?.recent_actions?.length || 0) > 0 ? (
           <div className="space-y-2 font-mono text-sm">
             {status?.recent_actions.map((action, i) => (
@@ -153,7 +155,7 @@ export default function AgentsPage() {
             ))}
           </div>
         ) : (
-          <p className="text-gray-600 text-sm">No activity yet. Start a session to see agent activity.</p>
+          <p className="text-gray-600 text-sm">{t.agents.noActivity}</p>
         )}
       </div>
     </div>

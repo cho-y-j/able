@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import api from "@/lib/api";
+import { useI18n } from "@/i18n";
 import { formatPct, scoreColor, gradeFromScore } from "@/lib/charts";
 
 interface BacktestSummary {
@@ -29,6 +30,7 @@ interface BacktestSummary {
 }
 
 export default function BacktestsPage() {
+  const { t } = useI18n();
   const [backtests, setBacktests] = useState<BacktestSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -70,19 +72,19 @@ export default function BacktestsPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold">Backtests</h2>
+        <h2 className="text-2xl font-bold">{t.backtests.title}</h2>
       </div>
 
       {loading ? (
-        <div className="text-center py-20 text-gray-500">Loading backtests...</div>
+        <div className="text-center py-20 text-gray-500">{t.common.loading}</div>
       ) : backtests.length === 0 ? (
         <div className="bg-gray-900 rounded-xl border border-gray-800 p-12 text-center">
-          <p className="text-gray-500 mb-4">No backtests found.</p>
+          <p className="text-gray-500 mb-4">{t.backtests.noResults}</p>
           <Link
             href="/dashboard/strategies"
             className="text-blue-400 hover:text-blue-300 text-sm"
           >
-            Go to Strategies to run a backtest
+            {t.backtests.runBacktest}
           </Link>
         </div>
       ) : (
@@ -90,13 +92,13 @@ export default function BacktestsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-800 text-gray-400">
-                <th className="text-left p-4">Strategy</th>
-                <th className="text-left p-4">Stock</th>
-                <th className="text-right p-4">Return</th>
-                <th className="text-right p-4">Sharpe</th>
-                <th className="text-right p-4">Max DD</th>
-                <th className="text-right p-4">Win Rate</th>
-                <th className="text-right p-4">Trades</th>
+                <th className="text-left p-4">{t.backtests.strategy}</th>
+                <th className="text-left p-4">{t.common.stock}</th>
+                <th className="text-right p-4">{t.strategies.totalReturn}</th>
+                <th className="text-right p-4">{t.backtests.sharpeRatio}</th>
+                <th className="text-right p-4">{t.backtests.maxDrawdown}</th>
+                <th className="text-right p-4">{t.backtests.winRate}</th>
+                <th className="text-right p-4">{t.backtests.totalTrades}</th>
                 <th className="text-center p-4">Grade</th>
                 <th className="text-center p-4">MC</th>
                 <th className="text-center p-4">OOS</th>

@@ -5,19 +5,20 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
 import { useNotifications, Toast } from "@/lib/useNotifications";
+import { useI18n, type Locale } from "@/i18n";
 
-const navItems = [
-  { href: "/dashboard", label: "Dashboard", icon: "H" },
-  { href: "/dashboard/market", label: "Market", icon: "M" },
-  { href: "/dashboard/strategies", label: "Strategies", icon: "S" },
-  { href: "/dashboard/backtests", label: "Backtests", icon: "B" },
-  { href: "/dashboard/trading", label: "Trading", icon: "T" },
-  { href: "/dashboard/paper", label: "Paper Trading", icon: "R" },
-  { href: "/dashboard/portfolio", label: "Portfolio", icon: "P" },
-  { href: "/dashboard/risk", label: "Risk", icon: "V" },
-  { href: "/dashboard/agents", label: "AI Agents", icon: "A" },
-  { href: "/dashboard/notifications", label: "Notifications", icon: "N" },
-  { href: "/dashboard/settings", label: "Settings", icon: "G" },
+const navKeys = [
+  { href: "/dashboard", key: "dashboard" as const, icon: "H" },
+  { href: "/dashboard/market", key: "market" as const, icon: "M" },
+  { href: "/dashboard/strategies", key: "strategies" as const, icon: "S" },
+  { href: "/dashboard/backtests", key: "backtests" as const, icon: "B" },
+  { href: "/dashboard/trading", key: "trading" as const, icon: "T" },
+  { href: "/dashboard/paper", key: "paper" as const, icon: "R" },
+  { href: "/dashboard/portfolio", key: "portfolio" as const, icon: "P" },
+  { href: "/dashboard/risk", key: "risk" as const, icon: "V" },
+  { href: "/dashboard/agents", key: "agents" as const, icon: "A" },
+  { href: "/dashboard/notifications", key: "notifications" as const, icon: "N" },
+  { href: "/dashboard/settings", key: "settings" as const, icon: "G" },
 ];
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -35,6 +36,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { user, logout } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { unreadCount, toasts, dismissToast } = useNotifications();
+  const { t, locale, setLocale } = useI18n();
 
   return (
     <div className="min-h-screen flex bg-gray-950 text-white">
@@ -57,8 +59,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       >
         <div className="p-6 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-blue-400">ABLE</h1>
-            <p className="text-xs text-gray-500 mt-1">AI Trading Platform</p>
+            <h1 className="text-2xl font-bold text-blue-400">{t.nav.platformName}</h1>
+            <p className="text-xs text-gray-500 mt-1">{t.nav.platformSub}</p>
           </div>
           <button
             onClick={() => setSidebarOpen(false)}
@@ -71,10 +73,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         <nav className="flex-1 px-3 overflow-y-auto">
-          {navItems.map((item) => {
+          {navKeys.map((item) => {
             const isActive = pathname === item.href ||
               (item.href !== "/dashboard" && pathname.startsWith(item.href));
             const isNotif = item.href === "/dashboard/notifications";
+            const label = t.nav[item.key];
             return (
               <Link
                 key={item.href}
@@ -94,7 +97,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     </span>
                   )}
                 </span>
-                {item.label}
+                {label}
                 {isNotif && unreadCount > 0 && (
                   <span className="ml-auto bg-red-500/20 text-red-400 text-xs px-2 py-0.5 rounded-full">
                     {unreadCount}
@@ -105,7 +108,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           })}
         </nav>
 
+        {/* Language toggle + user */}
         <div className="p-4 border-t border-gray-800">
+          <div className="flex items-center gap-1 mb-3">
+            {(["ko", "en"] as Locale[]).map((lang) => (
+              <button
+                key={lang}
+                onClick={() => setLocale(lang)}
+                className={`flex-1 py-1 text-xs rounded transition-colors ${
+                  locale === lang
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-800 text-gray-400 hover:text-white"
+                }`}
+              >
+                {lang === "ko" ? "한국어" : "English"}
+              </button>
+            ))}
+          </div>
           <div className="flex items-center justify-between">
             <div className="text-sm truncate mr-2">
               <p className="text-gray-300 truncate">{user?.display_name || user?.email}</p>
@@ -114,7 +133,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               onClick={logout}
               className="text-xs text-gray-500 hover:text-red-400 transition-colors whitespace-nowrap"
             >
-              Logout
+              {t.nav.logout}
             </button>
           </div>
         </div>

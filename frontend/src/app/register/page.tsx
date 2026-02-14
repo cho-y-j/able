@@ -3,10 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
+import { useI18n } from "@/i18n";
 
 export default function RegisterPage() {
   const router = useRouter();
   const register = useAuthStore((s) => s.register);
+  const { t } = useI18n();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -21,7 +23,7 @@ export default function RegisterPage() {
       await register(email, password, displayName || undefined);
       router.push("/dashboard/settings");
     } catch {
-      setError("Registration failed. Email may already be in use.");
+      setError(t.auth.registerError);
     } finally {
       setLoading(false);
     }
@@ -30,8 +32,8 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-950">
       <div className="w-full max-w-md p-8 bg-gray-900 rounded-2xl border border-gray-800">
-        <h1 className="text-3xl font-bold text-white mb-2">Create Account</h1>
-        <p className="text-gray-400 mb-8">Start AI-powered stock trading</p>
+        <h1 className="text-3xl font-bold text-white mb-2">{t.auth.createAccount}</h1>
+        <p className="text-gray-400 mb-8">{t.auth.createAccountSub}</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
@@ -41,18 +43,18 @@ export default function RegisterPage() {
           )}
 
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Display Name</label>
+            <label className="block text-sm text-gray-400 mb-1">{t.auth.displayName}</label>
             <input
               type="text"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
-              placeholder="Your name"
+              placeholder={t.auth.namePlaceholder}
             />
           </div>
 
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Email</label>
+            <label className="block text-sm text-gray-400 mb-1">{t.auth.email}</label>
             <input
               type="email"
               value={email}
@@ -63,7 +65,7 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Password</label>
+            <label className="block text-sm text-gray-400 mb-1">{t.auth.password}</label>
             <input
               type="password"
               value={password}
@@ -79,14 +81,14 @@ export default function RegisterPage() {
             disabled={loading}
             className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 text-white rounded-lg font-medium transition-colors"
           >
-            {loading ? "Creating..." : "Create Account"}
+            {loading ? t.auth.creating : t.auth.createAccount}
           </button>
         </form>
 
         <p className="mt-6 text-center text-gray-500 text-sm">
-          Already have an account?{" "}
+          {t.auth.hasAccount}{" "}
           <a href="/login" className="text-blue-400 hover:underline">
-            Log In
+            {t.auth.login}
           </a>
         </p>
       </div>

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import api from "@/lib/api";
+import { useI18n } from "@/i18n";
 import { formatPct, scoreColor, gradeFromScore, metricColor } from "@/lib/charts";
 
 interface StrategyCompare {
@@ -33,6 +34,7 @@ interface CompareResult {
 }
 
 export default function StrategyComparePage() {
+  const { t } = useI18n();
   const [strategyIds, setStrategyIds] = useState("");
   const [result, setResult] = useState<CompareResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -55,13 +57,13 @@ export default function StrategyComparePage() {
   };
 
   const metrics = [
-    { key: "total_return", label: "Total Return", fmt: formatPct },
-    { key: "annual_return", label: "Annual Return", fmt: formatPct },
-    { key: "sharpe_ratio", label: "Sharpe Ratio", fmt: (v: number) => v?.toFixed(2) ?? "-" },
+    { key: "total_return", label: t.strategies.totalReturn, fmt: formatPct },
+    { key: "annual_return", label: t.backtests.annualReturn, fmt: formatPct },
+    { key: "sharpe_ratio", label: t.backtests.sharpeRatio, fmt: (v: number) => v?.toFixed(2) ?? "-" },
     { key: "sortino_ratio", label: "Sortino Ratio", fmt: (v: number) => v?.toFixed(2) ?? "-" },
-    { key: "max_drawdown", label: "Max Drawdown", fmt: formatPct },
-    { key: "win_rate", label: "Win Rate", fmt: (v: number) => `${v?.toFixed(1)}%` },
-    { key: "profit_factor", label: "Profit Factor", fmt: (v: number) => v?.toFixed(2) ?? "-" },
+    { key: "max_drawdown", label: t.backtests.maxDrawdown, fmt: formatPct },
+    { key: "win_rate", label: t.backtests.winRate, fmt: (v: number) => `${v?.toFixed(1)}%` },
+    { key: "profit_factor", label: t.backtests.profitFactor, fmt: (v: number) => v?.toFixed(2) ?? "-" },
     { key: "calmar_ratio", label: "Calmar Ratio", fmt: (v: number) => v?.toFixed(2) ?? "-" },
     { key: "wfa_score", label: "WFA Score", fmt: (v: number) => v?.toFixed(0) ?? "-" },
     { key: "mc_score", label: "MC Score", fmt: (v: number) => v?.toFixed(0) ?? "-" },
@@ -72,9 +74,9 @@ export default function StrategyComparePage() {
     <div>
       <div className="flex items-center gap-4 mb-6">
         <Link href="/dashboard/strategies" className="text-gray-400 hover:text-white text-sm">
-          ← Strategies
+          ← {t.strategies.title}
         </Link>
-        <h2 className="text-2xl font-bold">Strategy Comparison</h2>
+        <h2 className="text-2xl font-bold">{t.backtests.compare}</h2>
       </div>
 
       {/* Input */}
@@ -137,7 +139,7 @@ export default function StrategyComparePage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-800 text-gray-400">
-                  <th className="text-left p-4">Metric</th>
+                  <th className="text-left p-4">{t.common.metric}</th>
                   {result.strategies.map((s) => (
                     <th key={s.strategy_id} className="text-right p-4">
                       <div className="text-gray-300">{s.name}</div>

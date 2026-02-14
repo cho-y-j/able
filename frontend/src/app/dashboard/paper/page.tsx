@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import api from "@/lib/api";
+import { useI18n } from "@/i18n";
 
 interface PaperSession {
   id: string;
@@ -77,6 +78,7 @@ interface SessionSummary {
 }
 
 export default function PaperTradingPage() {
+  const { t } = useI18n();
   const [sessions, setSessions] = useState<PaperSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [summary, setSummary] = useState<SessionSummary | null>(null);
@@ -188,7 +190,7 @@ export default function PaperTradingPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold">Paper Trading</h2>
+        <h2 className="text-2xl font-bold">{t.paper.title}</h2>
         <div className="flex gap-2">
           {activeSessionId && summary?.session.status === "active" && (
             <button
@@ -202,7 +204,7 @@ export default function PaperTradingPage() {
             onClick={() => setShowCreate(!showCreate)}
             className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
-            New Session
+            {t.paper.newSession}
           </button>
         </div>
       </div>
@@ -213,7 +215,7 @@ export default function PaperTradingPage() {
           <h3 className="text-lg font-semibold mb-4">Create Paper Trading Session</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Session Name</label>
+              <label className="block text-sm text-gray-400 mb-1">{t.paper.sessionName}</label>
               <input
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
@@ -221,7 +223,7 @@ export default function PaperTradingPage() {
               />
             </div>
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Initial Cash (₩)</label>
+              <label className="block text-sm text-gray-400 mb-1">{t.paper.initialCapital} (₩)</label>
               <input
                 type="number"
                 value={newCash}
@@ -246,7 +248,7 @@ export default function PaperTradingPage() {
             disabled={loading}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm"
           >
-            {loading ? "Creating..." : "Create Session"}
+            {loading ? t.common.loading : t.paper.startSession}
           </button>
         </div>
       )}
@@ -291,11 +293,11 @@ export default function PaperTradingPage() {
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
             <StatCard
-              label="Portfolio Value"
+              label={t.paper.portfolioValue}
               value={`₩${stats.portfolio_value.toLocaleString()}`}
             />
             <StatCard
-              label="Total P&L"
+              label={t.paper.totalPnl}
               value={`₩${stats.total_pnl.toLocaleString()}`}
               sub={`${stats.total_pnl_pct >= 0 ? "+" : ""}${stats.total_pnl_pct}%`}
               color={stats.total_pnl >= 0 ? "green" : "red"}
@@ -314,7 +316,7 @@ export default function PaperTradingPage() {
           </div>
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-            <StatCard label="Cash" value={`₩${stats.cash.toLocaleString()}`} />
+            <StatCard label={t.paper.cashBalance} value={`₩${stats.cash.toLocaleString()}`} />
             <StatCard
               label="Unrealized P&L"
               value={`₩${stats.unrealized_pnl.toLocaleString()}`}
@@ -337,10 +339,10 @@ export default function PaperTradingPage() {
       {/* Order Form */}
       {activeSessionId && summary?.session.status === "active" && (
         <div className="bg-gray-900 rounded-xl border border-gray-800 p-6 mb-6">
-          <h3 className="text-lg font-semibold mb-4">Place Paper Order</h3>
+          <h3 className="text-lg font-semibold mb-4">{t.paper.placeOrder}</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-4">
             <div>
-              <label className="block text-xs text-gray-400 mb-1">Stock Code</label>
+              <label className="block text-xs text-gray-400 mb-1">{t.trading.stockCode}</label>
               <input
                 value={orderForm.stock_code}
                 onChange={(e) => setOrderForm({ ...orderForm, stock_code: e.target.value })}
@@ -358,7 +360,7 @@ export default function PaperTradingPage() {
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-400 mb-1">Side</label>
+              <label className="block text-xs text-gray-400 mb-1">{t.common.side}</label>
               <select
                 value={orderForm.side}
                 onChange={(e) => setOrderForm({ ...orderForm, side: e.target.value })}
@@ -369,7 +371,7 @@ export default function PaperTradingPage() {
               </select>
             </div>
             <div>
-              <label className="block text-xs text-gray-400 mb-1">Quantity</label>
+              <label className="block text-xs text-gray-400 mb-1">{t.trading.quantity}</label>
               <input
                 type="number"
                 value={orderForm.quantity || ""}
@@ -387,7 +389,7 @@ export default function PaperTradingPage() {
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-400 mb-1">Order Type</label>
+              <label className="block text-xs text-gray-400 mb-1">{t.trading.orderType}</label>
               <select
                 value={orderForm.order_type}
                 onChange={(e) => setOrderForm({ ...orderForm, order_type: e.target.value })}
@@ -399,7 +401,7 @@ export default function PaperTradingPage() {
             </div>
             {orderForm.order_type === "limit" && (
               <div>
-                <label className="block text-xs text-gray-400 mb-1">Limit Price</label>
+                <label className="block text-xs text-gray-400 mb-1">{t.trading.limitPrice}</label>
                 <input
                   type="number"
                   value={orderForm.limit_price || ""}
@@ -419,7 +421,7 @@ export default function PaperTradingPage() {
                   : "bg-red-600 hover:bg-red-700 text-white"
               }`}
             >
-              {orderForm.side === "buy" ? "Buy" : "Sell"}
+              {orderForm.side === "buy" ? t.common.buy : t.common.sell}
             </button>
             {orderResult && (
               <span className="text-sm text-gray-300">{orderResult}</span>
@@ -432,19 +434,19 @@ export default function PaperTradingPage() {
       {summary && (
         <div className="bg-gray-900 rounded-xl border border-gray-800">
           <div className="flex border-b border-gray-800">
-            {(["positions", "orders", "trades"] as const).map((t) => (
+            {(["positions", "orders", "trades"] as const).map((tabKey) => (
               <button
-                key={t}
-                onClick={() => setTab(t)}
+                key={tabKey}
+                onClick={() => setTab(tabKey)}
                 className={`px-6 py-3 text-sm font-medium transition-colors ${
-                  tab === t
+                  tab === tabKey
                     ? "text-blue-400 border-b-2 border-blue-400"
                     : "text-gray-500 hover:text-gray-300"
                 }`}
               >
-                {t === "positions" && `Positions (${summary.positions.length})`}
-                {t === "orders" && `Orders (${summary.orders.length})`}
-                {t === "trades" && `Trades (${summary.trades.length})`}
+                {tabKey === "positions" && `${t.paper.portfolio} (${summary.positions.length})`}
+                {tabKey === "orders" && `${t.paper.orders} (${summary.orders.length})`}
+                {tabKey === "trades" && `${t.paper.trades} (${summary.trades.length})`}
               </button>
             ))}
           </div>

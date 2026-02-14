@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import api from "@/lib/api";
+import { useI18n } from "@/i18n";
 
 interface Strategy {
   id: string;
@@ -16,6 +17,7 @@ interface Strategy {
 }
 
 export default function StrategiesPage() {
+  const { t } = useI18n();
   const [strategies, setStrategies] = useState<Strategy[]>([]);
   const [searchCode, setSearchCode] = useState("");
   const [searchLoading, setSearchLoading] = useState(false);
@@ -43,9 +45,9 @@ export default function StrategiesPage() {
         date_range_end: "2025-12-31",
         optimization_method: "grid",
       });
-      alert(`Strategy search started for ${searchCode}`);
+      alert(`${t.strategies.searchStarted} ${searchCode}`);
     } catch {
-      alert("Failed to start strategy search");
+      alert(t.strategies.searchFailed);
     } finally {
       setSearchLoading(false);
     }
@@ -60,7 +62,7 @@ export default function StrategiesPage() {
       }
       fetchStrategies();
     } catch {
-      alert("Failed to toggle auto-trading");
+      alert(t.strategies.toggleFailed);
     }
   };
 
@@ -74,35 +76,35 @@ export default function StrategiesPage() {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-6">Trading Strategies</h2>
+      <h2 className="text-2xl font-bold mb-6">{t.strategies.title}</h2>
 
       {/* Strategy Search */}
       <div className="bg-gray-900 rounded-xl border border-gray-800 p-6 mb-6">
-        <h3 className="text-lg font-semibold mb-4">AI Strategy Search</h3>
+        <h3 className="text-lg font-semibold mb-4">{t.strategies.aiSearch}</h3>
         <p className="text-sm text-gray-500 mb-4">
-          Enter a stock code and let AI find the optimal trading strategy using backtesting and validation.
+          {t.strategies.aiSearchDesc}
         </p>
         <div className="flex gap-3">
           <input
             type="text"
             value={searchCode}
             onChange={(e) => setSearchCode(e.target.value)}
-            placeholder="Stock code (e.g., 005930 for Samsung)"
+            placeholder={t.strategies.stockCodePlaceholder}
             className="flex-1 px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
           />
           <button onClick={startSearch} disabled={searchLoading}
             className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 rounded-lg text-sm font-medium whitespace-nowrap transition-colors">
-            {searchLoading ? "Searching..." : "Search Strategy"}
+            {searchLoading ? t.strategies.searching : t.strategies.searchStrategy}
           </button>
         </div>
       </div>
 
       {/* Strategy List */}
       <div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
-        <h3 className="text-lg font-semibold mb-4">My Strategies ({strategies.length})</h3>
+        <h3 className="text-lg font-semibold mb-4">{t.strategies.myStrategies} ({strategies.length})</h3>
         {strategies.length === 0 ? (
           <p className="text-gray-600 text-sm">
-            No strategies yet. Use AI Strategy Search above to find optimal strategies.
+            {t.strategies.noStrategies}
           </p>
         ) : (
           <div className="space-y-3">
@@ -123,7 +125,7 @@ export default function StrategiesPage() {
                     {s.stock_name || s.stock_code} | {s.strategy_type}
                     {s.composite_score !== null && (
                       <span className={`ml-2 font-medium ${gradeColor(s.composite_score)}`}>
-                        Score: {s.composite_score.toFixed(1)}
+                        {t.common.score}: {s.composite_score.toFixed(1)}
                       </span>
                     )}
                   </p>
@@ -134,7 +136,7 @@ export default function StrategiesPage() {
                       ? "bg-red-600/20 text-red-400 hover:bg-red-600/30"
                       : "bg-green-600/20 text-green-400 hover:bg-green-600/30"
                   }`}>
-                  {s.is_auto_trading ? "Stop" : "Activate"}
+                  {s.is_auto_trading ? t.common.stop : t.common.activate}
                 </button>
               </div>
             ))}

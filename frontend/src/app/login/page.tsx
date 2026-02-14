@@ -3,10 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
+import { useI18n } from "@/i18n";
 
 export default function LoginPage() {
   const router = useRouter();
   const login = useAuthStore((s) => s.login);
+  const { t } = useI18n();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -20,7 +22,7 @@ export default function LoginPage() {
       await login(email, password);
       router.push("/dashboard");
     } catch {
-      setError("Invalid email or password");
+      setError(t.auth.loginError);
     } finally {
       setLoading(false);
     }
@@ -29,8 +31,8 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-950">
       <div className="w-full max-w-md p-8 bg-gray-900 rounded-2xl border border-gray-800">
-        <h1 className="text-3xl font-bold text-white mb-2">ABLE</h1>
-        <p className="text-gray-400 mb-8">AI Stock Auto-Trading Platform</p>
+        <h1 className="text-3xl font-bold text-white mb-2">{t.auth.platformTitle}</h1>
+        <p className="text-gray-400 mb-8">{t.auth.platformSub}</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
@@ -40,25 +42,25 @@ export default function LoginPage() {
           )}
 
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Email</label>
+            <label className="block text-sm text-gray-400 mb-1">{t.auth.email}</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
-              placeholder="you@example.com"
+              placeholder={t.auth.emailPlaceholder}
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Password</label>
+            <label className="block text-sm text-gray-400 mb-1">{t.auth.password}</label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
-              placeholder="Enter your password"
+              placeholder={t.auth.passwordPlaceholder}
               required
             />
           </div>
@@ -68,14 +70,14 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 text-white rounded-lg font-medium transition-colors"
           >
-            {loading ? "Logging in..." : "Log In"}
+            {loading ? t.auth.loggingIn : t.auth.login}
           </button>
         </form>
 
         <p className="mt-6 text-center text-gray-500 text-sm">
-          Don&apos;t have an account?{" "}
+          {t.auth.noAccount}{" "}
           <a href="/register" className="text-blue-400 hover:underline">
-            Register
+            {t.auth.register}
           </a>
         </p>
       </div>

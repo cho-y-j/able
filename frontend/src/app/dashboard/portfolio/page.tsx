@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import api from "@/lib/api";
 import { formatKRW, formatPct, metricColor } from "@/lib/charts";
+import { useI18n } from "@/i18n";
 
 interface PortfolioData {
   portfolio_value: number;
@@ -77,6 +78,7 @@ interface AttributionData {
 }
 
 export default function PortfolioPage() {
+  const { t } = useI18n();
   const [data, setData] = useState<PortfolioData | null>(null);
   const [trades, setTrades] = useState<TradeRow[]>([]);
   const [stratData, setStratData] = useState<StrategyPortfolio | null>(null);
@@ -107,23 +109,23 @@ export default function PortfolioPage() {
     }
   };
 
-  if (loading) return <div className="text-center py-20 text-gray-500">Loading portfolio...</div>;
+  if (loading) return <div className="text-center py-20 text-gray-500">{t.common.loading}</div>;
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-6">Portfolio Analytics</h2>
+      <h2 className="text-2xl font-bold mb-6">{t.portfolio.title}</h2>
 
       {/* Summary Cards */}
       {data && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <SummaryCard label="Portfolio Value" value={formatKRW(data.portfolio_value)} />
-          <SummaryCard label="Total Invested" value={formatKRW(data.total_invested)} />
+          <SummaryCard label={t.portfolio.portfolioValue} value={formatKRW(data.portfolio_value)} />
+          <SummaryCard label={t.portfolio.totalInvested} value={formatKRW(data.total_invested)} />
           <SummaryCard
-            label="Total P&L"
+            label={t.portfolio.totalPnl}
             value={`${formatKRW(data.total_pnl)} (${formatPct(data.total_pnl_pct)})`}
             color={metricColor(data.total_pnl)}
           />
-          <SummaryCard label="Positions" value={String(data.position_count)} />
+          <SummaryCard label={t.portfolio.positionCount} value={String(data.position_count)} />
         </div>
       )}
 
@@ -139,7 +141,7 @@ export default function PortfolioPage() {
                 : "bg-gray-800 text-gray-400 hover:text-white"
             }`}
           >
-            {tab === "overview" ? "Overview" : tab === "strategies" ? "By Strategy" : tab === "trades" ? "Trade History" : "Risk Analysis"}
+            {tab === "overview" ? t.portfolio.overview : tab === "strategies" ? t.portfolio.byStrategy : tab === "trades" ? t.portfolio.tradeHistory : t.portfolio.riskAnalysis}
           </button>
         ))}
       </div>
@@ -148,7 +150,7 @@ export default function PortfolioPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Allocation */}
           <div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
-            <h3 className="text-lg font-semibold mb-4">Allocation</h3>
+            <h3 className="text-lg font-semibold mb-4">{t.portfolio.allocation}</h3>
             {data.allocation.length > 0 ? (
               <div className="space-y-3">
                 {data.allocation.map((a) => (
@@ -180,30 +182,30 @@ export default function PortfolioPage() {
                 ))}
               </div>
             ) : (
-              <p className="text-gray-600">No positions.</p>
+              <p className="text-gray-600">{t.portfolio.noPositions}</p>
             )}
           </div>
 
           {/* Trade Stats */}
           <div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
-            <h3 className="text-lg font-semibold mb-4">Trade Statistics</h3>
+            <h3 className="text-lg font-semibold mb-4">{t.portfolio.tradeStatistics}</h3>
             <div className="grid grid-cols-2 gap-3">
-              <StatItem label="Total Trades" value={String(data.trade_stats.total_trades)} />
-              <StatItem label="Win Rate" value={`${data.trade_stats.win_rate}%`} color={metricColor(data.trade_stats.win_rate - 50)} />
-              <StatItem label="Avg Win" value={formatKRW(data.trade_stats.avg_win)} color="text-green-400" />
-              <StatItem label="Avg Loss" value={formatKRW(data.trade_stats.avg_loss)} color="text-red-400" />
-              <StatItem label="Profit Factor" value={data.trade_stats.profit_factor.toFixed(2)} color={metricColor(data.trade_stats.profit_factor - 1)} />
-              <StatItem label="W/L" value={`${data.trade_stats.winning_trades} / ${data.trade_stats.losing_trades}`} />
+              <StatItem label={t.portfolio.totalTrades} value={String(data.trade_stats.total_trades)} />
+              <StatItem label={t.portfolio.winRate} value={`${data.trade_stats.win_rate}%`} color={metricColor(data.trade_stats.win_rate - 50)} />
+              <StatItem label={t.portfolio.avgWin} value={formatKRW(data.trade_stats.avg_win)} color="text-green-400" />
+              <StatItem label={t.portfolio.avgLoss} value={formatKRW(data.trade_stats.avg_loss)} color="text-red-400" />
+              <StatItem label={t.portfolio.profitFactor} value={data.trade_stats.profit_factor.toFixed(2)} color={metricColor(data.trade_stats.profit_factor - 1)} />
+              <StatItem label={t.portfolio.wl} value={`${data.trade_stats.winning_trades} / ${data.trade_stats.losing_trades}`} />
             </div>
 
             {/* P&L Breakdown */}
             <div className="mt-6 pt-4 border-t border-gray-800">
-              <h4 className="text-sm text-gray-400 mb-3">P&L Breakdown</h4>
+              <h4 className="text-sm text-gray-400 mb-3">{t.portfolio.pnlBreakdown}</h4>
               <div className="space-y-2">
-                <PnlRow label="Unrealized" value={data.unrealized_pnl} />
-                <PnlRow label="Realized" value={data.realized_pnl} />
+                <PnlRow label={t.portfolio.unrealized} value={data.unrealized_pnl} />
+                <PnlRow label={t.portfolio.realized} value={data.realized_pnl} />
                 <div className="border-t border-gray-700 pt-2">
-                  <PnlRow label="Total" value={data.total_pnl} bold />
+                  <PnlRow label={t.portfolio.total} value={data.total_pnl} bold />
                 </div>
               </div>
             </div>
@@ -216,10 +218,10 @@ export default function PortfolioPage() {
           {/* Exposure Summary */}
           {stratData && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <SummaryCard label="Total Exposure" value={formatKRW(stratData.total_exposure)} />
-              <SummaryCard label="Net Exposure" value={formatKRW(stratData.net_exposure)} />
-              <SummaryCard label="Long" value={formatKRW(stratData.long_exposure)} color="text-green-400" />
-              <SummaryCard label="HHI" value={String(stratData.hhi)} color={stratData.hhi > 2500 ? "text-red-400" : "text-green-400"} />
+              <SummaryCard label={t.portfolio.totalExposure} value={formatKRW(stratData.total_exposure)} />
+              <SummaryCard label={t.portfolio.netExposure} value={formatKRW(stratData.net_exposure)} />
+              <SummaryCard label={t.portfolio.long} value={formatKRW(stratData.long_exposure)} color="text-green-400" />
+              <SummaryCard label={t.portfolio.hhi} value={String(stratData.hhi)} color={stratData.hhi > 2500 ? "text-red-400" : "text-green-400"} />
             </div>
           )}
 
@@ -227,7 +229,7 @@ export default function PortfolioPage() {
             {/* Strategy Exposures */}
             {stratData && Object.keys(stratData.strategy_exposures).length > 0 && (
               <div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
-                <h3 className="text-lg font-semibold mb-4">Strategy Exposures</h3>
+                <h3 className="text-lg font-semibold mb-4">{t.portfolio.strategyExposures}</h3>
                 <div className="space-y-3">
                   {Object.entries(stratData.strategy_exposures).map(([id, s]) => (
                     <div key={id} className="flex items-center justify-between py-2 border-b border-gray-800/50">
@@ -242,7 +244,7 @@ export default function PortfolioPage() {
             {/* Attribution */}
             {attribution && attribution.by_strategy.length > 0 && (
               <div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
-                <h3 className="text-lg font-semibold mb-4">P&L Attribution</h3>
+                <h3 className="text-lg font-semibold mb-4">{t.portfolio.pnlAttribution}</h3>
                 <div className="space-y-3">
                   {attribution.by_strategy.map((s) => (
                     <div key={s.key} className="py-2 border-b border-gray-800/50">
@@ -268,7 +270,7 @@ export default function PortfolioPage() {
           {/* Warnings & Conflicts */}
           {stratData && stratData.warnings.length > 0 && (
             <div className="bg-yellow-900/20 border border-yellow-700/30 rounded-xl p-4">
-              <h3 className="text-sm font-semibold text-yellow-400 mb-2">Warnings</h3>
+              <h3 className="text-sm font-semibold text-yellow-400 mb-2">{t.portfolio.warnings}</h3>
               <ul className="space-y-1">
                 {stratData.warnings.map((w, i) => (
                   <li key={i} className="text-sm text-yellow-300/80">{w}</li>
@@ -287,14 +289,14 @@ export default function PortfolioPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-800 text-gray-400">
-                  <th className="text-left p-4">Stock</th>
-                  <th className="text-center p-4">Side</th>
-                  <th className="text-right p-4">Qty</th>
-                  <th className="text-right p-4">Entry</th>
-                  <th className="text-right p-4">Exit</th>
-                  <th className="text-right p-4">P&L</th>
-                  <th className="text-right p-4">P&L %</th>
-                  <th className="text-right p-4">Date</th>
+                  <th className="text-left p-4">{t.common.stock}</th>
+                  <th className="text-center p-4">{t.common.side}</th>
+                  <th className="text-right p-4">{t.common.qty}</th>
+                  <th className="text-right p-4">{t.portfolio.entry}</th>
+                  <th className="text-right p-4">{t.portfolio.exit}</th>
+                  <th className="text-right p-4">{t.dashboard.pnl}</th>
+                  <th className="text-right p-4">{t.portfolio.pnlPct}</th>
+                  <th className="text-right p-4">{t.common.date}</th>
                 </tr>
               </thead>
               <tbody>
@@ -329,7 +331,7 @@ export default function PortfolioPage() {
               </tbody>
             </table>
           ) : (
-            <div className="p-12 text-center text-gray-600">No trade history yet.</div>
+            <div className="p-12 text-center text-gray-600">{t.portfolio.noTradeHistory}</div>
           )}
         </div>
       )}
@@ -367,6 +369,7 @@ function PnlRow({ label, value, bold = false }: { label: string; value: number; 
 }
 
 function RiskTab() {
+  const { t } = useI18n();
   const [riskData, setRiskData] = useState<{
     portfolio_value: number;
     confidence: number;
@@ -385,15 +388,15 @@ function RiskTab() {
       .finally(() => setRiskLoading(false));
   }, []);
 
-  if (riskLoading) return <div className="text-center py-12 text-gray-500">Loading risk data...</div>;
+  if (riskLoading) return <div className="text-center py-12 text-gray-500">{t.risk.loading}</div>;
 
   if (!riskData || riskData.message) {
     return (
       <div className="bg-gray-900 rounded-xl border border-gray-800 p-12 text-center">
-        <p className="text-gray-500">{riskData?.message || "No risk data available."}</p>
-        <p className="text-sm text-gray-600 mt-2">Open positions are required for risk analysis.</p>
+        <p className="text-gray-500">{riskData?.message || t.portfolio.noRiskData}</p>
+        <p className="text-sm text-gray-600 mt-2">{t.portfolio.riskRequiresPositions}</p>
         <a href="/dashboard/risk" className="inline-block mt-4 text-sm text-blue-400 hover:text-blue-300">
-          Go to full Risk Analysis page &rarr;
+          {t.portfolio.goToRisk} &rarr;
         </a>
       </div>
     );
@@ -407,9 +410,9 @@ function RiskTab() {
       {/* VaR Summary */}
       <div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">Value at Risk (95%, 1-Day)</h3>
+          <h3 className="text-lg font-semibold">{t.portfolio.varSummaryTitle}</h3>
           <a href="/dashboard/risk" className="text-sm text-blue-400 hover:text-blue-300">
-            Full Analysis &rarr;
+            {t.portfolio.fullAnalysis} &rarr;
           </a>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -430,7 +433,7 @@ function RiskTab() {
       {/* Stress Tests Summary */}
       {riskData.stress_tests.length > 0 && (
         <div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
-          <h3 className="text-lg font-semibold mb-4">Stress Test Scenarios</h3>
+          <h3 className="text-lg font-semibold mb-4">{t.portfolio.stressTests}</h3>
           <div className="space-y-2">
             {riskData.stress_tests.map((s) => (
               <div key={s.scenario} className="flex items-center justify-between py-2 border-b border-gray-800/50">

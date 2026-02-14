@@ -93,9 +93,10 @@ describe("DashboardPage", () => {
     render(<DashboardPage />);
 
     await waitFor(() => {
-      expect(
-        screen.getByText("No open positions. Configure your API keys in Settings to start trading."),
-      ).toBeInTheDocument();
+      const matches = screen.getAllByText(
+        "No open positions. Configure your API keys in Settings to start trading.",
+      );
+      expect(matches.length).toBeGreaterThanOrEqual(1);
     });
   });
 

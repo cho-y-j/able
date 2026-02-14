@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import api from "@/lib/api";
+import { useI18n } from "@/i18n";
 
 const LLM_PROVIDERS = {
   openai: { name: "OpenAI", models: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "o1", "o3-mini"] },
@@ -21,6 +22,7 @@ interface ApiKey {
 }
 
 export default function SettingsPage() {
+  const { t } = useI18n();
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -63,11 +65,11 @@ export default function SettingsPage() {
         account_number: kisAccount,
         is_paper_trading: kisPaper,
       });
-      setMessage("KIS credentials saved successfully!");
+      setMessage(t.settings.kisSaved);
       setKisAppKey(""); setKisAppSecret(""); setKisAccount("");
       fetchKeys();
     } catch {
-      setMessage("Failed to save KIS credentials");
+      setMessage(t.settings.kisFailed);
     } finally {
       setKisLoading(false);
     }
@@ -83,11 +85,11 @@ export default function SettingsPage() {
         api_key: llmApiKey,
         model_name: llmModel,
       });
-      setMessage("LLM API key saved successfully!");
+      setMessage(t.settings.llmSaved);
       setLlmApiKey("");
       fetchKeys();
     } catch {
-      setMessage("Failed to save LLM credentials");
+      setMessage(t.settings.llmFailed);
     } finally {
       setLlmLoading(false);
     }
@@ -100,7 +102,7 @@ export default function SettingsPage() {
       setMessage(data.message);
       if (data.valid) fetchKeys();
     } catch {
-      setMessage("Validation request failed");
+      setMessage(t.settings.validationFailed);
     }
   };
 
@@ -113,7 +115,7 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-3xl">
-      <h2 className="text-2xl font-bold mb-6">Settings</h2>
+      <h2 className="text-2xl font-bold mb-6">{t.settings.title}</h2>
 
       {message && (
         <div className={`mb-4 p-3 rounded-lg text-sm ${
@@ -126,7 +128,7 @@ export default function SettingsPage() {
       {/* Saved Keys */}
       {keys.length > 0 && (
         <div className="bg-gray-900 rounded-xl border border-gray-800 p-6 mb-6">
-          <h3 className="text-lg font-semibold mb-4">Saved API Keys</h3>
+          <h3 className="text-lg font-semibold mb-4">{t.settings.savedKeys}</h3>
           <div className="space-y-3">
             {keys.map((key) => (
               <div key={key.id} className="flex items-center justify-between p-3 bg-gray-800 rounded-lg">
@@ -139,14 +141,14 @@ export default function SettingsPage() {
                   <span className="text-sm">{key.label}</span>
                   {key.model_name && <span className="text-xs text-gray-500 ml-2">{key.model_name}</span>}
                   <span className="text-xs text-gray-600 ml-2">{key.masked_key}</span>
-                  {!key.is_active && <span className="text-xs text-gray-600 ml-2">(inactive)</span>}
+                  {!key.is_active && <span className="text-xs text-gray-600 ml-2">{t.settings.inactive}</span>}
                 </div>
                 <div className="flex items-center gap-2">
                   <button onClick={() => validateKey(key.id)} className="text-blue-400 hover:text-blue-300 text-sm">
-                    Validate
+                    {t.common.validate}
                   </button>
                   <button onClick={() => deleteKey(key.id)} className="text-red-400 hover:text-red-300 text-sm">
-                    Delete
+                    {t.common.delete}
                   </button>
                 </div>
               </div>
@@ -157,38 +159,38 @@ export default function SettingsPage() {
 
       {/* KIS API Configuration */}
       <div className="bg-gray-900 rounded-xl border border-gray-800 p-6 mb-6">
-        <h3 className="text-lg font-semibold mb-4">Korea Investment Securities API</h3>
+        <h3 className="text-lg font-semibold mb-4">{t.settings.kisTitle}</h3>
         <p className="text-sm text-gray-500 mb-4">
-          Enter your KIS Open API credentials. Get them from the KIS Developer Portal.
+          {t.settings.kisDesc}
         </p>
         <form onSubmit={saveKIS} className="space-y-3">
           <input type="text" value={kisAppKey} onChange={(e) => setKisAppKey(e.target.value)}
-            placeholder="App Key" className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500" required />
+            placeholder={t.settings.appKey} className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500" required />
           <input type="password" value={kisAppSecret} onChange={(e) => setKisAppSecret(e.target.value)}
-            placeholder="App Secret" className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500" required />
+            placeholder={t.settings.appSecret} className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500" required />
           <input type="text" value={kisAccount} onChange={(e) => setKisAccount(e.target.value)}
-            placeholder="Account Number (e.g., 50123456-01)" className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500" required />
+            placeholder={t.settings.accountPlaceholder} className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500" required />
           <label className="flex items-center gap-2 text-sm text-gray-400">
             <input type="checkbox" checked={kisPaper} onChange={(e) => setKisPaper(e.target.checked)}
               className="rounded bg-gray-800 border-gray-600" />
-            Paper Trading (recommended for testing)
+            {t.settings.paperTrading}
           </label>
           <button type="submit" disabled={kisLoading}
             className="px-6 py-2 bg-orange-600 hover:bg-orange-700 disabled:bg-gray-700 rounded-lg text-sm font-medium transition-colors">
-            {kisLoading ? "Saving..." : "Save KIS Credentials"}
+            {kisLoading ? t.settings.saving : t.settings.saveKis}
           </button>
         </form>
       </div>
 
       {/* LLM API Configuration */}
       <div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
-        <h3 className="text-lg font-semibold mb-4">LLM API Configuration</h3>
+        <h3 className="text-lg font-semibold mb-4">{t.settings.llmTitle}</h3>
         <p className="text-sm text-gray-500 mb-4">
-          Select your preferred AI model provider and enter your API key.
+          {t.settings.llmDesc}
         </p>
         <form onSubmit={saveLLM} className="space-y-3">
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Provider</label>
+            <label className="block text-sm text-gray-400 mb-1">{t.settings.provider}</label>
             <select value={llmProvider} onChange={(e) => { setLlmProvider(e.target.value); setLlmModel(""); }}
               className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500">
               {Object.entries(LLM_PROVIDERS).map(([key, val]) => (
@@ -197,7 +199,7 @@ export default function SettingsPage() {
             </select>
           </div>
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Model</label>
+            <label className="block text-sm text-gray-400 mb-1">{t.settings.model}</label>
             <select value={llmModel} onChange={(e) => setLlmModel(e.target.value)}
               className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500">
               {providerModels.map((m) => (
@@ -206,10 +208,10 @@ export default function SettingsPage() {
             </select>
           </div>
           <input type="password" value={llmApiKey} onChange={(e) => setLlmApiKey(e.target.value)}
-            placeholder="API Key (e.g., sk-...)" className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500" required />
+            placeholder={t.settings.apiKeyPlaceholder} className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500" required />
           <button type="submit" disabled={llmLoading}
             className="px-6 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 rounded-lg text-sm font-medium transition-colors">
-            {llmLoading ? "Saving..." : "Save LLM API Key"}
+            {llmLoading ? t.settings.saving : t.settings.saveLlm}
           </button>
         </form>
       </div>

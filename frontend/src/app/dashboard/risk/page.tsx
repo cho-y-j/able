@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import api from "@/lib/api";
 import { formatKRW, formatPct, metricColor } from "@/lib/charts";
+import { useI18n } from "@/i18n";
 
 interface VarMethod {
   var: number;
@@ -39,10 +40,10 @@ interface RiskData {
   message?: string;
 }
 
-const METHOD_LABELS: Record<string, string> = {
-  historical: "Historical",
-  parametric: "Parametric",
-  monte_carlo: "Monte Carlo",
+const METHOD_KEYS: Record<string, "historical" | "parametric" | "monteCarlo"> = {
+  historical: "historical",
+  parametric: "parametric",
+  monte_carlo: "monteCarlo",
 };
 
 const SCENARIO_ICONS: Record<string, string> = {
@@ -60,6 +61,7 @@ export default function RiskPage() {
   const [confidence, setConfidence] = useState(0.95);
   const [horizon, setHorizon] = useState(1);
   const [expandedScenario, setExpandedScenario] = useState<string | null>(null);
+  const { t } = useI18n();
 
   const fetchRisk = async () => {
     setLoading(true);
@@ -80,16 +82,16 @@ export default function RiskPage() {
   }, [confidence, horizon]);
 
   if (loading) {
-    return <div className="text-center py-20 text-gray-500">Loading risk analysis...</div>;
+    return <div className="text-center py-20 text-gray-500">{t.risk.loading}</div>;
   }
 
   if (!data || data.message) {
     return (
       <div>
-        <h2 className="text-2xl font-bold mb-6">Risk Analysis</h2>
+        <h2 className="text-2xl font-bold mb-6">{t.risk.title}</h2>
         <div className="bg-gray-900 rounded-xl border border-gray-800 p-12 text-center">
-          <p className="text-gray-500">{data?.message || "No risk data available."}</p>
-          <p className="text-sm text-gray-600 mt-2">Open positions are required for risk analysis.</p>
+          <p className="text-gray-500">{data?.message || t.risk.noPositions}</p>
+          <p className="text-sm text-gray-600 mt-2">{t.risk.requiresPositions}</p>
         </div>
       </div>
     );
@@ -104,10 +106,10 @@ export default function RiskPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold">Risk Analysis</h2>
+        <h2 className="text-2xl font-bold">{t.risk.title}</h2>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <label className="text-xs text-gray-500">Confidence</label>
+            <label className="text-xs text-gray-500">{t.risk.confidence}</label>
             <select
               value={confidence}
               onChange={(e) => setConfidence(Number(e.target.value))}
@@ -119,16 +121,16 @@ export default function RiskPage() {
             </select>
           </div>
           <div className="flex items-center gap-2">
-            <label className="text-xs text-gray-500">Horizon</label>
+            <label className="text-xs text-gray-500">{t.risk.horizon}</label>
             <select
               value={horizon}
               onChange={(e) => setHorizon(Number(e.target.value))}
               className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-gray-300"
             >
-              <option value={1}>1 Day</option>
-              <option value={5}>5 Days</option>
-              <option value={10}>10 Days</option>
-              <option value={21}>21 Days</option>
+              <option value={1}>{t.risk.day1}</option>
+              <option value={5}>{t.risk.day5}</option>
+              <option value={10}>{t.risk.day10}</option>
+              <option value={21}>{t.risk.day21}</option>
             </select>
           </div>
         </div>
@@ -136,21 +138,21 @@ export default function RiskPage() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <SummaryCard label="Portfolio Value" value={formatKRW(data.portfolio_value)} />
+        <SummaryCard label={t.risk.portfolioValue} value={formatKRW(data.portfolio_value)} />
         <SummaryCard
-          label={`VaR (${(data.confidence * 100).toFixed(0)}%)`}
+          label={`${t.risk.var} (${(data.confidence * 100).toFixed(0)}%)`}
           value={formatKRW(varMethods.historical?.var || 0)}
           sub={formatPct(varMethods.historical?.var_pct ? -varMethods.historical.var_pct : 0)}
           color="text-red-400"
         />
         <SummaryCard
-          label="CVaR (Expected Shortfall)"
+          label={t.risk.expectedShortfall}
           value={formatKRW(varMethods.historical?.cvar || 0)}
           sub={formatPct(varMethods.historical?.cvar_pct ? -varMethods.historical.cvar_pct : 0)}
           color="text-red-400"
         />
         <SummaryCard
-          label="Worst Scenario"
+          label={t.risk.worstScenario}
           value={
             data.stress_tests.length > 0
               ? formatKRW(
@@ -171,9 +173,9 @@ export default function RiskPage() {
 
       {/* VaR Methods Comparison */}
       <div className="bg-gray-900 rounded-xl border border-gray-800 p-6 mb-6">
-        <h3 className="text-lg font-semibold mb-4">Value at Risk Comparison</h3>
+        <h3 className="text-lg font-semibold mb-4">{t.risk.varComparison}</h3>
         <p className="text-xs text-gray-500 mb-4">
-          {data.horizon_days}-day horizon at {(data.confidence * 100).toFixed(0)}% confidence level
+          {data.horizon_days}{t.risk.varComparisonDesc} {(data.confidence * 100).toFixed(0)}% {t.risk.confidenceLevel}
         </p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {(["historical", "parametric", "monte_carlo"] as const).map((method) => {
@@ -182,12 +184,12 @@ export default function RiskPage() {
             return (
               <div key={method} className="bg-gray-800 rounded-lg p-4">
                 <h4 className="text-sm font-medium text-gray-400 mb-3">
-                  {METHOD_LABELS[method]}
+                  {t.risk[METHOD_KEYS[method]]}
                 </h4>
                 <div className="space-y-3">
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs text-gray-500">VaR</span>
+                      <span className="text-xs text-gray-500">{t.risk.var}</span>
                       <span className="text-sm font-mono text-red-400">{formatKRW(m.var)}</span>
                     </div>
                     <div className="w-full bg-gray-700 rounded-full h-2">
@@ -196,11 +198,11 @@ export default function RiskPage() {
                         style={{ width: `${Math.min((m.var / maxVar) * 100, 100)}%` }}
                       />
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">{formatPct(-m.var_pct)} of portfolio</p>
+                    <p className="text-xs text-gray-500 mt-1">{formatPct(-m.var_pct)} {t.risk.ofPortfolio}</p>
                   </div>
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs text-gray-500">CVaR</span>
+                      <span className="text-xs text-gray-500">{t.risk.cvar}</span>
                       <span className="text-sm font-mono text-red-400">{formatKRW(m.cvar)}</span>
                     </div>
                     <div className="w-full bg-gray-700 rounded-full h-2">
@@ -209,7 +211,7 @@ export default function RiskPage() {
                         style={{ width: `${Math.min((m.cvar / maxVar) * 100, 100)}%` }}
                       />
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">{formatPct(-m.cvar_pct)} of portfolio</p>
+                    <p className="text-xs text-gray-500 mt-1">{formatPct(-m.cvar_pct)} {t.risk.ofPortfolio}</p>
                   </div>
                 </div>
               </div>
@@ -221,7 +223,7 @@ export default function RiskPage() {
       {/* Stress Tests */}
       {data.stress_tests.length > 0 && (
         <div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
-          <h3 className="text-lg font-semibold mb-4">Stress Test Scenarios</h3>
+          <h3 className="text-lg font-semibold mb-4">{t.risk.stressTests}</h3>
           <div className="space-y-3">
             {data.stress_tests.map((s) => {
               const isExpanded = expandedScenario === s.scenario;
@@ -278,10 +280,10 @@ export default function RiskPage() {
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="text-gray-500 text-xs">
-                            <th className="text-left pb-2">Stock</th>
-                            <th className="text-right pb-2">Current Value</th>
-                            <th className="text-right pb-2">Shock</th>
-                            <th className="text-right pb-2">Impact</th>
+                            <th className="text-left pb-2">{t.common.stock}</th>
+                            <th className="text-right pb-2">{t.risk.currentValue}</th>
+                            <th className="text-right pb-2">{t.risk.shock}</th>
+                            <th className="text-right pb-2">{t.risk.impact}</th>
                           </tr>
                         </thead>
                         <tbody>

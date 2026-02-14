@@ -6,8 +6,10 @@ import { useAuthStore } from "@/store/auth";
 import { createWSConnection } from "@/lib/ws";
 import { CHART_COLORS, DEFAULT_CHART_OPTIONS, formatKRW, formatPct } from "@/lib/charts";
 import api from "@/lib/api";
+import { useI18n } from "@/i18n";
 
 export default function TradingPage() {
+  const { t } = useI18n();
   const {
     positions, orders, portfolioStats,
     fetchPositions, fetchOrders, fetchPortfolioStats,
@@ -64,7 +66,7 @@ export default function TradingPage() {
   return (
     <div className="space-y-4 sm:space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-        <h2 className="text-xl sm:text-2xl font-bold">Trading Monitor</h2>
+        <h2 className="text-xl sm:text-2xl font-bold">{t.trading.title}</h2>
         <div className="flex items-center gap-2 text-xs text-gray-500">
           <span className="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse" />
           Live
@@ -80,22 +82,22 @@ export default function TradingPage() {
       {/* Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard
-          label="Portfolio Value"
+          label={t.portfolio.portfolioValue}
           value={formatKRW(totalValue)}
         />
         <StatCard
-          label="Unrealized P&L"
+          label={t.portfolio.unrealized}
           value={formatKRW(totalUnrealized)}
           color={totalUnrealized >= 0 ? "green" : "red"}
           sub={portfolioStats ? formatPct(portfolioStats.total_pnl_pct) : undefined}
         />
         <StatCard
-          label="Positions"
+          label={t.portfolio.positionCount}
           value={String(positions.length)}
-          sub={activeOrders.length > 0 ? `${activeOrders.length} active orders` : "No active orders"}
+          sub={activeOrders.length > 0 ? `${activeOrders.length} ${t.trading.openOrders}` : t.trading.noOrders}
         />
         <StatCard
-          label="Win Rate"
+          label={t.portfolio.winRate}
           value={portfolioStats ? `${portfolioStats.trade_stats.win_rate}%` : "--"}
           sub={portfolioStats ? `${portfolioStats.trade_stats.total_trades} trades` : undefined}
           color={portfolioStats && portfolioStats.trade_stats.win_rate >= 50 ? "green" : "neutral"}
@@ -112,7 +114,7 @@ export default function TradingPage() {
         {/* Position list (takes 1/3 on XL) */}
         <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 sm:p-5 overflow-hidden">
           <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">
-            Positions ({positions.length})
+            {t.portfolio.positionCount} ({positions.length})
           </h3>
           {positions.length === 0 ? (
             <div className="text-center py-8 text-gray-600 text-sm">
@@ -143,7 +145,7 @@ export default function TradingPage() {
               Positions
             </TabButton>
             <TabButton active={activeTab === "orders"} onClick={() => setActiveTab("orders")}>
-              Orders ({orders.length})
+              {t.trading.openOrders} ({orders.length})
             </TabButton>
           </div>
           {activeTab === "orders" && (

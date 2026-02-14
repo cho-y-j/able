@@ -420,6 +420,21 @@
 | 236 | Risk 페이지 테스트 8개 | ✅ 완료 | `frontend/__tests__/pages/risk.test.tsx` (NEW) |
 | 237 | Backend 510 tests + Frontend 78 tests = **588 총 테스트**, **18 라우트** | ✅ 완료 | |
 
+### 다국어 지원 (i18n) ✅
+
+| # | 작업 | 상태 | 파일 |
+|---|------|------|------|
+| 238 | i18n 컨텍스트 + useI18n 훅 (localStorage 기반) | ✅ 완료 | `frontend/src/i18n/index.tsx` (NEW) |
+| 239 | 영어 번역 파일 (230+ 키, 14개 네임스페이스) | ✅ 완료 | `frontend/src/i18n/locales/en.ts` (NEW) |
+| 240 | 한국어 번역 파일 (230+ 키, 완전 번역) | ✅ 완료 | `frontend/src/i18n/locales/ko.ts` (NEW) |
+| 241 | I18nProvider → Root Layout 통합 | ✅ 완료 | `frontend/src/app/layout.tsx` (MOD) |
+| 242 | 사이드바 한국어/English 토글 버튼 | ✅ 완료 | `frontend/src/app/dashboard/layout.tsx` (MOD) |
+| 243 | 로그인/회원가입 페이지 i18n 적용 | ✅ 완료 | `login/page.tsx`, `register/page.tsx` (MOD) |
+| 244 | 대시보드 메인 페이지 i18n 적용 | ✅ 완료 | `dashboard/page.tsx` (MOD) |
+| 245 | 리스크 분석 페이지 i18n 적용 | ✅ 완료 | `dashboard/risk/page.tsx` (MOD) |
+| 246 | i18n 테스트 6개 (키 동기화, 빈값 체크, 네임스페이스, 한국어 문자) | ✅ 완료 | `frontend/__tests__/i18n.test.ts` (NEW) |
+| 247 | Backend 510 + Frontend 84 = **594 총 테스트** | ✅ 완료 | |
+
 ---
 
 ## 최종 프로젝트 현황 (2026-02-14)
@@ -506,7 +521,7 @@
 | 3 | **분봉 데이터 수집 + 멀티타임프레임 분석** | ✅ 완료 | KIS 분봉 API, resample, SMA/RSI/MACD, MTF 합의 (24 tests) |
 | 4 | **PDF 리포트 생성** | ✅ 완료 | ReportLab — 포트폴리오/백테스트 PDF 생성 (14 tests) |
 | 5 | **대시보드 리스크 탭** | ✅ 완료 | /dashboard/risk 페이지 + Portfolio Risk 탭 (8 tests) |
-| 6 | **다국어 지원 (i18n)** | 🟢 선택 | 한국어/영어 전환 (next-intl) |
+| 6 | **다국어 지원 (i18n)** | ✅ 완료 | 한국어/영어 전환, 230+ 번역 키, 사이드바 언어 토글 |
 | 7 | **강화학습 에이전트** | 🔵 미래 | 에이전트 피드백 루프 기반 전략 자동 조정 |
 | 8 | **모바일 앱 (React Native)** | 🔵 미래 | 알림 push, 긴급 승인/거부 |
 | 9 | **규제 보고서 자동 생성** | 🔵 미래 | 세금 보고용 거래 내역 요약 |

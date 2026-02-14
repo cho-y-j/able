@@ -4,11 +4,13 @@ import { useEffect, useState } from "react";
 import { useAuthStore } from "@/store/auth";
 import { useTradingStore } from "@/store/trading";
 import api from "@/lib/api";
+import { useI18n } from "@/i18n";
 
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user);
   const fetchUser = useAuthStore((s) => s.fetchUser);
   const { positions, fetchPositions } = useTradingStore();
+  const { t } = useI18n();
   const [balance, setBalance] = useState<{
     total_balance: number;
     available_cash: number;
@@ -46,31 +48,31 @@ export default function DashboardPage() {
   return (
     <div>
       <h2 className="text-2xl font-bold mb-6">
-        Welcome back, {user?.display_name || "Trader"}
+        {t.dashboard.welcome} {user?.display_name || t.dashboard.defaultName}
       </h2>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
         <SummaryCard
-          title="Total Balance"
+          title={t.dashboard.totalBalance}
           value={balance ? `₩${balance.total_balance.toLocaleString()}` : "--"}
-          subtitle={balance ? `Cash: ₩${balance.available_cash.toLocaleString()}` : "Connect KIS API"}
+          subtitle={balance ? `Cash: ₩${balance.available_cash.toLocaleString()}` : t.dashboard.connectKis}
         />
         <SummaryCard
-          title="Today P&L"
+          title={t.dashboard.todayPnl}
           value={balance ? `₩${balance.total_pnl.toLocaleString()}` : "--"}
-          subtitle={positions.length > 0 ? `${positions.length} positions` : "No active trades"}
+          subtitle={positions.length > 0 ? `${positions.length} ${t.dashboard.positions}` : t.dashboard.noPositions}
           color={balance && balance.total_pnl >= 0 ? "green" : "red"}
         />
         <SummaryCard
-          title="Active Strategies"
+          title={t.dashboard.activeStrategies}
           value={String(strategyCount)}
-          subtitle={strategyCount > 0 ? "strategies configured" : "No strategies"}
+          subtitle={strategyCount > 0 ? t.dashboard.strategiesConfigured : ""}
         />
         <SummaryCard
-          title="AI Agent Status"
+          title={t.dashboard.agentStatus}
           value={agentStatus}
-          subtitle={agentStatus === "Running" ? "Agents working" : "Not running"}
+          subtitle={agentStatus === "Running" ? t.dashboard.agentsWorking : t.dashboard.notRunning}
           color={agentStatus === "Running" ? "green" : "neutral"}
         />
       </div>
@@ -78,26 +80,26 @@ export default function DashboardPage() {
       {/* Positions */}
       <div className="bg-gray-900 rounded-xl border border-gray-800 p-6 mb-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">Open Positions</h3>
+          <h3 className="text-lg font-semibold">{t.dashboard.openPositions}</h3>
           {positions.length > 0 && (
             <span className={`text-sm font-medium ${totalPnl >= 0 ? "text-green-400" : "text-red-400"}`}>
-              Total P&L: ₩{totalPnl.toLocaleString()}
+              {t.dashboard.totalPnl}: ₩{totalPnl.toLocaleString()}
             </span>
           )}
         </div>
         {positions.length === 0 ? (
           <p className="text-gray-500 text-sm">
-            No open positions. Configure your API keys in Settings to start trading.
+            {t.dashboard.noPositions}
           </p>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="text-gray-500 border-b border-gray-800">
-                <th className="text-left py-2">Stock</th>
-                <th className="text-right py-2">Qty</th>
-                <th className="text-right py-2">Avg Cost</th>
-                <th className="text-right py-2">Current</th>
-                <th className="text-right py-2">P&L</th>
+                <th className="text-left py-2">{t.common.stock}</th>
+                <th className="text-right py-2">{t.common.qty}</th>
+                <th className="text-right py-2">{t.dashboard.avgCost}</th>
+                <th className="text-right py-2">{t.dashboard.current}</th>
+                <th className="text-right py-2">{t.dashboard.pnl}</th>
               </tr>
             </thead>
             <tbody>
@@ -119,21 +121,21 @@ export default function DashboardPage() {
 
       {/* Quick Actions */}
       <div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
-        <h3 className="text-lg font-semibold mb-4">Quick Start</h3>
+        <h3 className="text-lg font-semibold mb-4">{t.dashboard.quickStart}</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <QuickAction
-            title="1. Setup API Keys"
-            description="Configure your Korea Investment & LLM API keys"
+            title={t.dashboard.step1Title}
+            description={t.dashboard.step1Desc}
             href="/dashboard/settings"
           />
           <QuickAction
-            title="2. Search Strategies"
-            description="Let AI find optimal trading strategies"
+            title={t.dashboard.step2Title}
+            description={t.dashboard.step2Desc}
             href="/dashboard/strategies"
           />
           <QuickAction
-            title="3. Start AI Agent"
-            description="Activate the automated trading agent team"
+            title={t.dashboard.step3Title}
+            description={t.dashboard.step3Desc}
             href="/dashboard/agents"
           />
         </div>

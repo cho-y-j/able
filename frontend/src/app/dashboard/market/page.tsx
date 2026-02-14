@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import api from "@/lib/api";
+import { useI18n } from "@/i18n";
 import { useRealtimePrice } from "@/lib/useRealtimePrice";
 
 interface OHLCVItem {
@@ -14,6 +15,7 @@ interface OHLCVItem {
 }
 
 export default function MarketPage() {
+  const { t } = useI18n();
   const [stockCode, setStockCode] = useState("");
   const [activeCode, setActiveCode] = useState<string | null>(null);
   const [priceData, setPriceData] = useState<Record<string, unknown> | null>(null);
@@ -148,7 +150,7 @@ export default function MarketPage() {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-6">Market Analysis</h2>
+      <h2 className="text-2xl font-bold mb-6">{t.market.title}</h2>
 
       {/* Stock Search */}
       <div className="bg-gray-900 rounded-xl border border-gray-800 p-6 mb-6">
@@ -159,7 +161,7 @@ export default function MarketPage() {
             value={stockCode}
             onChange={(e) => setStockCode(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && fetchPrice()}
-            placeholder="Stock code (e.g., 005930)"
+            placeholder={t.market.searchPlaceholder}
             className="flex-1 px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
           />
           <select
@@ -175,7 +177,7 @@ export default function MarketPage() {
           </select>
           <button onClick={fetchPrice} disabled={loading}
             className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 rounded-lg text-sm font-medium transition-colors">
-            {loading ? "Loading..." : "Lookup"}
+            {loading ? t.common.loading : t.market.searchBtn}
           </button>
         </div>
       </div>
@@ -191,7 +193,7 @@ export default function MarketPage() {
               {isConnected && (
                 <span className="flex items-center gap-1 text-xs text-green-400">
                   <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                  LIVE
+                  {t.market.live}
                 </span>
               )}
             </div>
@@ -202,11 +204,11 @@ export default function MarketPage() {
             </span>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <PriceItem label="Change" value={String(priceData.change)} color={Number(priceData.change) >= 0} />
-            <PriceItem label="Change %" value={`${priceData.change_percent}%`} color={Number(priceData.change_percent) >= 0} />
-            <PriceItem label="Volume" value={Number(priceData.volume).toLocaleString()} />
-            <PriceItem label="High" value={Number(priceData.high || 0).toLocaleString()} />
-            <PriceItem label="Low" value={Number(priceData.low || 0).toLocaleString()} />
+            <PriceItem label={t.market.change} value={String(priceData.change)} color={Number(priceData.change) >= 0} />
+            <PriceItem label={`${t.market.change} %`} value={`${priceData.change_percent}%`} color={Number(priceData.change_percent) >= 0} />
+            <PriceItem label={t.market.volume} value={Number(priceData.volume).toLocaleString()} />
+            <PriceItem label={t.market.high} value={Number(priceData.high || 0).toLocaleString()} />
+            <PriceItem label={t.market.low} value={Number(priceData.low || 0).toLocaleString()} />
           </div>
           {typeof priceData.message === "string" && (
             <p className="text-sm text-yellow-400 mt-4">{priceData.message}</p>
@@ -217,7 +219,7 @@ export default function MarketPage() {
       {/* Chart */}
       <div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
         <h3 className="text-lg font-semibold mb-4">
-          Chart {ohlcvData.length > 0 && `(${ohlcvData.length} candles)`}
+          {t.market.priceChart} {ohlcvData.length > 0 && `(${ohlcvData.length} candles)`}
         </h3>
         <div ref={chartContainerRef} className="w-full" style={{ minHeight: 400 }}>
           {ohlcvData.length === 0 && (

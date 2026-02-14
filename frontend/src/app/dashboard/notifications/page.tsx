@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import api from "@/lib/api";
+import { useI18n } from "@/i18n";
 
 interface NotificationItem {
   id: string;
@@ -35,6 +36,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 export default function NotificationsPage() {
+  const { t } = useI18n();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [total, setTotal] = useState(0);
@@ -107,7 +109,7 @@ export default function NotificationsPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-2xl font-bold">Notifications</h2>
+          <h2 className="text-2xl font-bold">{t.notifications.title}</h2>
           <p className="text-sm text-gray-500 mt-1">
             {unreadCount > 0 ? `${unreadCount} unread` : "All caught up"} &middot; {total} total
           </p>
@@ -118,14 +120,14 @@ export default function NotificationsPage() {
               onClick={markAllRead}
               className="px-4 py-2 text-sm bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 border border-gray-700"
             >
-              Mark All Read
+              {t.notifications.markAllRead}
             </button>
           )}
           <button
             onClick={() => { setShowPrefs(!showPrefs); if (!prefs) loadPrefs(); }}
             className="px-4 py-2 text-sm bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 border border-gray-700"
           >
-            Preferences
+            {t.notifications.preferences}
           </button>
         </div>
       </div>
@@ -133,15 +135,15 @@ export default function NotificationsPage() {
       {/* Preferences Panel */}
       {showPrefs && prefs && (
         <div className="bg-gray-900 rounded-xl border border-gray-800 p-6 mb-6">
-          <h3 className="text-lg font-semibold mb-4">Notification Preferences</h3>
+          <h3 className="text-lg font-semibold mb-4">{t.notifications.preferences}</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <PrefToggle
-              label="In-app Notifications"
+              label={t.notifications.pushNotif}
               checked={prefs.in_app_enabled}
               onChange={(v) => savePrefs({ in_app_enabled: v })}
             />
             <PrefToggle
-              label="Email Notifications"
+              label={t.notifications.emailNotif}
               checked={prefs.email_enabled}
               onChange={(v) => savePrefs({ email_enabled: v })}
             />
@@ -182,7 +184,7 @@ export default function NotificationsPage() {
             !filter ? "bg-blue-600/20 border-blue-500 text-blue-400" : "bg-gray-900 border-gray-800 text-gray-500"
           }`}
         >
-          All
+          {t.notifications.categories.all}
         </button>
         {categories.map((cat) => (
           <button
@@ -192,7 +194,7 @@ export default function NotificationsPage() {
               filter === cat ? "bg-blue-600/20 border-blue-500 text-blue-400" : "bg-gray-900 border-gray-800 text-gray-500"
             }`}
           >
-            {cat}
+            {t.notifications.categories[cat as keyof typeof t.notifications.categories] || cat}
           </button>
         ))}
       </div>
@@ -201,11 +203,11 @@ export default function NotificationsPage() {
       <div className="space-y-2">
         {loading ? (
           <div className="bg-gray-900 rounded-xl border border-gray-800 p-12 text-center">
-            <p className="text-gray-500">Loading notifications...</p>
+            <p className="text-gray-500">{t.common.loading}</p>
           </div>
         ) : notifications.length === 0 ? (
           <div className="bg-gray-900 rounded-xl border border-gray-800 p-12 text-center">
-            <p className="text-gray-500">No notifications yet.</p>
+            <p className="text-gray-500">{t.notifications.noNotifications}</p>
           </div>
         ) : (
           notifications.map((n) => (
