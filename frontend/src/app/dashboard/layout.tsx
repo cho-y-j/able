@@ -14,6 +14,7 @@ const navItems = [
   { href: "/dashboard/trading", label: "Trading", icon: "T" },
   { href: "/dashboard/paper", label: "Paper Trading", icon: "R" },
   { href: "/dashboard/portfolio", label: "Portfolio", icon: "P" },
+  { href: "/dashboard/risk", label: "Risk", icon: "V" },
   { href: "/dashboard/agents", label: "AI Agents", icon: "A" },
   { href: "/dashboard/notifications", label: "Notifications", icon: "N" },
   { href: "/dashboard/settings", label: "Settings", icon: "G" },

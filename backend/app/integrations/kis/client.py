@@ -3,11 +3,13 @@ from typing import Any
 from app.integrations.kis.auth import KISTokenManager
 from app.integrations.kis.constants import (
     REAL_BASE_URL, PAPER_BASE_URL,
-    STOCK_PRICE_PATH, STOCK_DAILY_PRICE_PATH, STOCK_ORDERBOOK_PATH,
+    STOCK_PRICE_PATH, STOCK_DAILY_PRICE_PATH, STOCK_MINUTE_PRICE_PATH,
+    STOCK_ORDERBOOK_PATH,
     BALANCE_PATH,
     ORDER_PATH, ORDER_CANCEL_PATH,
     TR_ID_BUY, TR_ID_SELL, TR_ID_BUY_PAPER, TR_ID_SELL_PAPER,
     TR_ID_BALANCE, TR_ID_BALANCE_PAPER, TR_ID_PRICE, TR_ID_DAILY_PRICE,
+    TR_ID_MINUTE_PRICE,
 )
 
 
@@ -110,6 +112,44 @@ class KISClient:
             "close": float(item.get("stck_clpr", 0)),
             "volume": int(item.get("acml_vol", 0)),
         } for item in items if item.get("stck_bsop_date")]
+
+    async def get_minute_ohlcv(self, stock_code: str, interval: int = 1,
+                               end_time: str = "153000") -> list[dict]:
+        """Fetch intraday minute OHLCV data.
+
+        Args:
+            stock_code: Stock code (e.g. "005930")
+            interval: Candle interval in minutes (1, 3, 5, 10, 15, 30, 60)
+            end_time: End time in HHMMSS format (default: market close 15:30)
+
+        Returns:
+            List of OHLCV dicts with time field
+        """
+        params = {
+            "FID_ETC_CLS_CODE": "",
+            "FID_COND_MRKT_DIV_CODE": "J",
+            "FID_INPUT_ISCD": stock_code,
+            "FID_INPUT_HOUR_1": end_time,
+            "FID_PW_DATA_INCU_YN": "Y",
+        }
+        data = await self._request(
+            "GET", STOCK_MINUTE_PRICE_PATH, TR_ID_MINUTE_PRICE, params=params
+        )
+        items = data.get("output2", [])
+        result = []
+        for item in items:
+            time_val = item.get("stck_cntg_hour", "")
+            if not time_val:
+                continue
+            result.append({
+                "time": time_val,
+                "open": float(item.get("stck_oprc", 0)),
+                "high": float(item.get("stck_hgpr", 0)),
+                "low": float(item.get("stck_lwpr", 0)),
+                "close": float(item.get("stck_prpr", 0)),
+                "volume": int(item.get("cntg_vol", 0)),
+            })
+        return result
 
     async def get_balance(self) -> dict:
         tr_id = TR_ID_BALANCE_PAPER if self.is_paper else TR_ID_BALANCE

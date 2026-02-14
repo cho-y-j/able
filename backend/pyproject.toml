@@ -41,6 +41,8 @@ dependencies = [
     "yfinance>=0.2.31",
     # WebSocket
     "websockets>=13.0",
+    # PDF reports
+    "reportlab>=4.0",
     # Monitoring
     "prometheus-client>=0.21",
 ]

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import api from "@/lib/api";
+import { useRealtimePrice } from "@/lib/useRealtimePrice";
 
 interface OHLCVItem {
   date: string;
@@ -14,6 +15,7 @@ interface OHLCVItem {
 
 export default function MarketPage() {
   const [stockCode, setStockCode] = useState("");
+  const [activeCode, setActiveCode] = useState<string | null>(null);
   const [priceData, setPriceData] = useState<Record<string, unknown> | null>(null);
   const [ohlcvData, setOhlcvData] = useState<OHLCVItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -21,19 +23,42 @@ export default function MarketPage() {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<unknown>(null);
 
+  // Real-time price streaming
+  const { tick, isConnected } = useRealtimePrice(activeCode);
+
+  // Update price display when a new tick arrives
+  useEffect(() => {
+    if (!tick) return;
+    setPriceData((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        current_price: tick.current_price,
+        change: tick.change,
+        change_percent: tick.change_percent,
+        volume: tick.volume,
+        high: tick.high,
+        low: tick.low,
+      };
+    });
+  }, [tick]);
+
   const fetchPrice = async () => {
     if (!stockCode.trim()) return;
     setLoading(true);
+    const code = stockCode.trim();
     try {
       const [priceRes, ohlcvRes] = await Promise.all([
-        api.get(`/market/price/${stockCode.trim()}`),
-        api.get(`/market/ohlcv/${stockCode.trim()}?period=${period}`),
+        api.get(`/market/price/${code}`),
+        api.get(`/market/ohlcv/${code}?period=${period}`),
       ]);
       setPriceData(priceRes.data);
       setOhlcvData(ohlcvRes.data.data || []);
+      setActiveCode(code); // Start real-time streaming
     } catch {
       setPriceData(null);
       setOhlcvData([]);
+      setActiveCode(null);
     } finally {
       setLoading(false);
     }
@@ -159,9 +184,17 @@ export default function MarketPage() {
       {priceData && (
         <div className="bg-gray-900 rounded-xl border border-gray-800 p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold">
-              {String(priceData.stock_code)}
-            </h3>
+            <div className="flex items-center gap-3">
+              <h3 className="text-lg font-semibold">
+                {String(priceData.stock_code)}
+              </h3>
+              {isConnected && (
+                <span className="flex items-center gap-1 text-xs text-green-400">
+                  <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                  LIVE
+                </span>
+              )}
+            </div>
             <span className={`text-2xl font-bold ${
               Number(priceData.change) >= 0 ? "text-green-400" : "text-red-400"
             }`}>

@@ -82,7 +82,7 @@ export default function PortfolioPage() {
   const [stratData, setStratData] = useState<StrategyPortfolio | null>(null);
   const [attribution, setAttribution] = useState<AttributionData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"overview" | "strategies" | "trades">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "strategies" | "trades" | "risk">("overview");
 
   useEffect(() => {
     fetchData();
@@ -129,7 +129,7 @@ export default function PortfolioPage() {
 
       {/* Tabs */}
       <div className="flex gap-2 mb-4">
-        {(["overview", "strategies", "trades"] as const).map((tab) => (
+        {(["overview", "strategies", "trades", "risk"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -139,7 +139,7 @@ export default function PortfolioPage() {
                 : "bg-gray-800 text-gray-400 hover:text-white"
             }`}
           >
-            {tab === "overview" ? "Overview" : tab === "strategies" ? "By Strategy" : "Trade History"}
+            {tab === "overview" ? "Overview" : tab === "strategies" ? "By Strategy" : tab === "trades" ? "Trade History" : "Risk Analysis"}
           </button>
         ))}
       </div>
@@ -279,6 +279,8 @@ export default function PortfolioPage() {
         </div>
       )}
 
+      {activeTab === "risk" && <RiskTab />}
+
       {activeTab === "trades" && (
         <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
           {trades.length > 0 ? (
@@ -360,6 +362,90 @@ function PnlRow({ label, value, bold = false }: { label: string; value: number; 
       <span className={`font-mono ${bold ? "text-base font-bold" : "text-sm"} ${metricColor(value)}`}>
         {formatKRW(value)}
       </span>
+    </div>
+  );
+}
+
+function RiskTab() {
+  const [riskData, setRiskData] = useState<{
+    portfolio_value: number;
+    confidence: number;
+    horizon_days: number;
+    var: Record<string, { var: number; var_pct: number; cvar: number; cvar_pct: number }>;
+    stress_tests: { scenario: string; description: string; impact: number; impact_pct: number }[];
+    message?: string;
+  } | null>(null);
+  const [riskLoading, setRiskLoading] = useState(true);
+
+  useEffect(() => {
+    api
+      .get("/trading/portfolio/risk?confidence=0.95&horizon_days=1")
+      .then(({ data }) => setRiskData(data))
+      .catch(() => {})
+      .finally(() => setRiskLoading(false));
+  }, []);
+
+  if (riskLoading) return <div className="text-center py-12 text-gray-500">Loading risk data...</div>;
+
+  if (!riskData || riskData.message) {
+    return (
+      <div className="bg-gray-900 rounded-xl border border-gray-800 p-12 text-center">
+        <p className="text-gray-500">{riskData?.message || "No risk data available."}</p>
+        <p className="text-sm text-gray-600 mt-2">Open positions are required for risk analysis.</p>
+        <a href="/dashboard/risk" className="inline-block mt-4 text-sm text-blue-400 hover:text-blue-300">
+          Go to full Risk Analysis page &rarr;
+        </a>
+      </div>
+    );
+  }
+
+  const methods = ["historical", "parametric", "monte_carlo"] as const;
+  const labels: Record<string, string> = { historical: "Historical", parametric: "Parametric", monte_carlo: "Monte Carlo" };
+
+  return (
+    <div className="space-y-6">
+      {/* VaR Summary */}
+      <div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold">Value at Risk (95%, 1-Day)</h3>
+          <a href="/dashboard/risk" className="text-sm text-blue-400 hover:text-blue-300">
+            Full Analysis &rarr;
+          </a>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {methods.map((m) => {
+            const d = riskData.var[m];
+            if (!d) return null;
+            return (
+              <div key={m} className="bg-gray-800 rounded-lg p-4">
+                <p className="text-xs text-gray-500 mb-1">{labels[m]}</p>
+                <p className="text-lg font-bold text-red-400">{formatKRW(d.var)}</p>
+                <p className="text-xs text-gray-500">CVaR: {formatKRW(d.cvar)}</p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Stress Tests Summary */}
+      {riskData.stress_tests.length > 0 && (
+        <div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
+          <h3 className="text-lg font-semibold mb-4">Stress Test Scenarios</h3>
+          <div className="space-y-2">
+            {riskData.stress_tests.map((s) => (
+              <div key={s.scenario} className="flex items-center justify-between py-2 border-b border-gray-800/50">
+                <div>
+                  <span className="text-sm text-gray-300 capitalize">{s.scenario.replace(/_/g, " ")}</span>
+                  <p className="text-xs text-gray-500">{s.description}</p>
+                </div>
+                <span className="text-sm font-mono text-red-400">
+                  {formatKRW(s.impact)} ({formatPct(s.impact_pct)})
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

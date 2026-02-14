@@ -370,21 +370,75 @@
 
 ---
 
+## 추가 기능 구현 (세션 2: 프론트엔드 테스트 + 실시간 + 분석 + PDF + 리스크)
+
+### Frontend Testing 인프라 + 테스트 ✅
+
+| # | 작업 | 상태 | 파일 |
+|---|------|------|------|
+| 215 | Jest 30 + React Testing Library + ts-jest 설정 | ✅ 완료 | `frontend/jest.config.ts`, `jest.setup.ts` (NEW) |
+| 216 | 차트 유틸리티 테스트 22개 | ✅ 완료 | `frontend/__tests__/lib/charts.test.ts` (NEW) |
+| 217 | WebSocket 매니저 테스트 5개 | ✅ 완료 | `frontend/__tests__/lib/ws.test.ts` (NEW) |
+| 218 | Auth Store 테스트 10개 | ✅ 완료 | `frontend/__tests__/store/auth.test.ts` (NEW) |
+| 219 | Trading Store 테스트 14개 | ✅ 완료 | `frontend/__tests__/store/trading.test.ts` (NEW) |
+| 220 | Login 페이지 테스트 6개 | ✅ 완료 | `frontend/__tests__/pages/login.test.tsx` (NEW) |
+| 221 | Register 페이지 테스트 8개 | ✅ 완료 | `frontend/__tests__/pages/register.test.tsx` (NEW) |
+| 222 | Dashboard 페이지 테스트 8개 | ✅ 완료 | `frontend/__tests__/pages/dashboard.test.tsx` (NEW) |
+
+### 실시간 가격 WebSocket ✅
+
+| # | 작업 | 상태 | 파일 |
+|---|------|------|------|
+| 223 | Backend WebSocket 가격 스트리밍 (5초 폴링 push) | ✅ 완료 | `backend/app/api/v1/websocket.py` (MOD) |
+| 224 | useRealtimePrice 훅 (자동 재연결) | ✅ 완료 | `frontend/src/lib/useRealtimePrice.ts` (NEW) |
+| 225 | Market 페이지 실시간 가격 표시 + LIVE 뱃지 | ✅ 완료 | `frontend/src/app/dashboard/market/page.tsx` (MOD) |
+
+### 분봉 데이터 + 멀티타임프레임 분석 ✅
+
+| # | 작업 | 상태 | 파일 |
+|---|------|------|------|
+| 226 | KIS 분봉 OHLCV API (get_minute_ohlcv) | ✅ 완료 | `backend/app/integrations/kis/client.py` (MOD) |
+| 227 | 멀티타임프레임 분석 엔진 (resample, SMA, RSI, MACD, 합의) | ✅ 완료 | `backend/app/analysis/indicators/multi_timeframe.py` (NEW) |
+| 228 | GET /market/minute/{code}, /market/mtf/{code} 엔드포인트 | ✅ 완료 | `backend/app/api/v1/market_data.py` (MOD) |
+| 229 | MTF 테스트 24개 (Resample, SMA, RSI, MACD, Analyze, MTF) | ✅ 완료 | `backend/tests/unit/test_multi_timeframe.py` (NEW) |
+
+### PDF 리포트 생성 ✅
+
+| # | 작업 | 상태 | 파일 |
+|---|------|------|------|
+| 230 | ReportLab PDF 엔진 (포트폴리오 + 백테스트 리포트) | ✅ 완료 | `backend/app/services/pdf_report.py` (NEW) |
+| 231 | GET /portfolio/report/pdf 엔드포인트 | ✅ 완료 | `backend/app/api/v1/trading.py` (MOD) |
+| 232 | PDF 테스트 14개 (format, portfolio, backtest) | ✅ 완료 | `backend/tests/unit/test_pdf_report.py` (NEW) |
+
+### 대시보드 리스크 탭 ✅
+
+| # | 작업 | 상태 | 파일 |
+|---|------|------|------|
+| 233 | Risk Analysis 전용 페이지 (VaR 비교, 스트레스 테스트, 확장 가능) | ✅ 완료 | `frontend/src/app/dashboard/risk/page.tsx` (NEW) |
+| 234 | Portfolio Risk 탭 (VaR 요약, 스트레스 테스트, 링크) | ✅ 완료 | `frontend/src/app/dashboard/portfolio/page.tsx` (MOD) |
+| 235 | 사이드바 Risk 네비게이션 추가 | ✅ 완료 | `frontend/src/app/dashboard/layout.tsx` (MOD) |
+| 236 | Risk 페이지 테스트 8개 | ✅ 완료 | `frontend/__tests__/pages/risk.test.tsx` (NEW) |
+| 237 | Backend 510 tests + Frontend 78 tests = **588 총 테스트**, **18 라우트** | ✅ 완료 | |
+
+---
+
 ## 최종 프로젝트 현황 (2026-02-14)
 
 ### 수치 요약
 
 | 항목 | 수치 |
 |------|------|
-| **Backend 테스트** | **472 passing** |
-| **Frontend 라우트** | **17 routes** |
+| **Backend 테스트** | **510 passing** |
+| **Frontend 테스트** | **78 passing** (Jest 30 + React Testing Library) |
+| **총 테스트** | **588 passing** |
+| **Frontend 라우트** | **18 routes** |
 | **API 엔드포인트** | **50+ endpoints** (Swagger: `/docs`, ReDoc: `/redoc`) |
 | **DB 모델** | **13 tables** (TimescaleDB) |
 | **기술적 지표** | **70+** (23 signal generators) |
 | **LangGraph 에이전트 노드** | **6 nodes** (전부 실제 동작) |
 | **Docker 서비스** | **7** (backend, worker, beat, db, redis, prometheus, grafana) |
 | **LLM 프로바이더** | **3** (OpenAI, Anthropic, Google) |
-| **파일 수** | **~180** |
+| **파일 수** | **~200** |
 
 ### 아키텍처
 
@@ -443,15 +497,15 @@
 | 9 | **도메인/SSL 설정 (배포 시)** | 🟢 선택 | 프로덕션 배포 시 도메인 + Nginx reverse proxy + Let's Encrypt SSL |
 | 10 | **GitHub Secrets 등록** | 🟢 선택 | CI/CD Docker push 활성화 시 DOCKER_USERNAME, DOCKER_PASSWORD 시크릿 추가 |
 
-### AI(Claude)가 다음에 해야 할 일
+### AI(Claude)가 다음에 해야 할 일 — 완료 현황
 
-| # | 작업 | 우선순위 | 설명 |
-|---|------|----------|------|
-| 1 | **프론트엔드 테스트** | 🟡 중요 | Jest + React Testing Library로 주요 컴포넌트 단위 테스트 |
-| 2 | **실시간 가격 WebSocket 프론트엔드 연동** | 🟡 중요 | Market 페이지에서 KIS WebSocket 가격 스트림을 실시간 차트에 반영 |
-| 3 | **분봉 데이터 수집 + 멀티타임프레임 분석** | 🟡 중요 | 1분/5분/15분 봉 데이터 수집, 멀티타임프레임 시그널 생성 |
-| 4 | **PDF 리포트 생성** | 🟢 선택 | 포트폴리오/백테스트 결과를 PDF로 출력 (WeasyPrint 또는 ReportLab) |
-| 5 | **대시보드 리스크 탭** | 🟢 선택 | 프론트엔드에 VaR/CVaR/스트레스 결과 시각화 (차트 + 테이블) |
+| # | 작업 | 상태 | 설명 |
+|---|------|------|------|
+| 1 | **프론트엔드 테스트** | ✅ 완료 | Jest 30 + React Testing Library — 78 tests (7 test files) |
+| 2 | **실시간 가격 WebSocket 프론트엔드 연동** | ✅ 완료 | useRealtimePrice 훅, Market 페이지 LIVE 뱃지, 5초 폴링 |
+| 3 | **분봉 데이터 수집 + 멀티타임프레임 분석** | ✅ 완료 | KIS 분봉 API, resample, SMA/RSI/MACD, MTF 합의 (24 tests) |
+| 4 | **PDF 리포트 생성** | ✅ 완료 | ReportLab — 포트폴리오/백테스트 PDF 생성 (14 tests) |
+| 5 | **대시보드 리스크 탭** | ✅ 완료 | /dashboard/risk 페이지 + Portfolio Risk 탭 (8 tests) |
 | 6 | **다국어 지원 (i18n)** | 🟢 선택 | 한국어/영어 전환 (next-intl) |
 | 7 | **강화학습 에이전트** | 🔵 미래 | 에이전트 피드백 루프 기반 전략 자동 조정 |
 | 8 | **모바일 앱 (React Native)** | 🔵 미래 | 알림 push, 긴급 승인/거부 |

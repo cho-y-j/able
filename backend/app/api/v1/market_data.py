@@ -83,6 +83,115 @@ async def get_ohlcv(
         raise HTTPException(status_code=502, detail=f"Failed to fetch OHLCV: {str(e)}")
 
 
+@router.get("/minute/{stock_code}",
+             summary="Fetch intraday minute OHLCV data")
+async def get_minute_data(
+    stock_code: str,
+    interval: int = 1,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Fetch intraday minute-candle OHLCV from KIS API.
+
+    Supported intervals: 1, 3, 5, 10, 15, 30, 60 minutes.
+    """
+    try:
+        kis = await get_kis_client(user.id, db)
+        data = await kis.get_minute_ohlcv(stock_code, interval=interval)
+        return {
+            "stock_code": stock_code,
+            "interval": f"{interval}min",
+            "count": len(data),
+            "data": data,
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"KIS minute data fetch failed for {stock_code}: {e}")
+        raise HTTPException(status_code=502, detail=f"Failed to fetch minute data: {str(e)}")
+
+
+@router.get("/mtf/{stock_code}",
+             summary="Multi-timeframe analysis (5min, 15min, 1h, daily)")
+async def get_mtf_analysis(
+    stock_code: str,
+    period: str = "1y",
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Run multi-timeframe trend/momentum analysis combining minute and daily data."""
+    import pandas as pd
+    from app.analysis.indicators.multi_timeframe import multi_timeframe_analysis
+
+    try:
+        kis = await get_kis_client(user.id, db)
+
+        # Fetch minute data (latest session)
+        minute_raw = await kis.get_minute_ohlcv(stock_code, interval=1)
+
+        # Fetch daily data for higher timeframe
+        end_date = datetime.now()
+        period_map = {"3m": timedelta(days=90), "6m": timedelta(days=180), "1y": timedelta(days=365)}
+        delta = period_map.get(period, timedelta(days=365))
+        start_date = end_date - delta
+
+        daily_raw = await kis.get_daily_ohlcv(
+            stock_code, period_code="D",
+            start_date=start_date.strftime("%Y%m%d"),
+            end_date=end_date.strftime("%Y%m%d"),
+        )
+
+        # Build DataFrames
+        minute_df = pd.DataFrame()
+        if minute_raw:
+            minute_df = pd.DataFrame(minute_raw)
+            minute_df["datetime"] = pd.to_datetime(minute_df["time"], format="%H%M%S", errors="coerce")
+            minute_df = minute_df.dropna(subset=["datetime"])
+            # Set today's date for the time
+            today = pd.Timestamp.now().normalize()
+            minute_df["datetime"] = today + pd.to_timedelta(
+                minute_df["datetime"].dt.hour * 3600 +
+                minute_df["datetime"].dt.minute * 60 +
+                minute_df["datetime"].dt.second,
+                unit="s",
+            )
+            minute_df = minute_df.set_index("datetime").sort_index()
+
+        daily_df = None
+        if daily_raw:
+            daily_df = pd.DataFrame(daily_raw)
+            daily_df["date"] = pd.to_datetime(daily_df["date"], format="%Y%m%d", errors="coerce")
+            daily_df = daily_df.dropna(subset=["date"]).set_index("date").sort_index()
+
+        result = multi_timeframe_analysis(minute_df, daily_df)
+
+        return {
+            "stock_code": stock_code,
+            "consensus": result.consensus,
+            "consensus_score": result.consensus_score,
+            "alignment": result.alignment,
+            "dominant_timeframe": result.dominant_timeframe,
+            "recommendation": result.recommendation,
+            "signals": {
+                tf: {
+                    "trend": sig.trend,
+                    "strength": sig.strength,
+                    "sma_20": sig.sma_20,
+                    "sma_50": sig.sma_50,
+                    "rsi_14": sig.rsi_14,
+                    "macd_signal": sig.macd_signal,
+                    "volume_trend": sig.volume_trend,
+                }
+                for tf, sig in result.signals.items()
+            },
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"MTF analysis failed for {stock_code}: {e}")
+        raise HTTPException(status_code=502, detail=f"Failed to run MTF analysis: {str(e)}")
+
+
 @router.get("/indicators/{stock_code}")
 async def get_indicators(
     stock_code: str,

@@ -1,5 +1,6 @@
 """Trading endpoints - connected to KIS API for order execution."""
 
+import io
 import uuid
 import logging
 from datetime import datetime, timezone
@@ -587,3 +588,77 @@ async def portfolio_risk(
 
     report = full_risk_report(returns, portfolio_value, pos_list, confidence, horizon_days)
     return report
+
+
+@router.get("/portfolio/report/pdf", summary="Download portfolio PDF report")
+async def portfolio_report_pdf(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Generate and download a PDF portfolio report."""
+    from fastapi.responses import StreamingResponse
+    from app.services.pdf_report import generate_portfolio_report
+
+    # Gather data
+    pos_result = await db.execute(
+        select(Position).where(Position.user_id == user.id, Position.quantity > 0)
+    )
+    positions = pos_result.scalars().all()
+
+    pos_list = [
+        {
+            "stock_code": p.stock_code,
+            "stock_name": p.stock_name,
+            "quantity": p.quantity,
+            "avg_cost_price": float(p.avg_cost_price),
+            "current_price": float(p.current_price) if p.current_price else None,
+            "unrealized_pnl": float(p.unrealized_pnl) if p.unrealized_pnl is not None else None,
+        }
+        for p in positions
+    ]
+
+    total_invested = sum(float(p.avg_cost_price) * p.quantity for p in positions)
+    total_current = sum(
+        float(p.current_price or p.avg_cost_price) * p.quantity for p in positions
+    )
+    total_unrealized = sum(float(p.unrealized_pnl or 0) for p in positions)
+
+    trade_result = await db.execute(
+        select(Trade).where(Trade.user_id == user.id, Trade.exit_at != None)  # noqa: E711
+    )
+    trades = trade_result.scalars().all()
+    total_realized = sum(float(t.pnl or 0) for t in trades)
+    winning = [t for t in trades if t.pnl and float(t.pnl) > 0]
+    losing = [t for t in trades if t.pnl and float(t.pnl) <= 0]
+
+    stats = {
+        "portfolio_value": total_current,
+        "total_invested": total_invested,
+        "unrealized_pnl": total_unrealized,
+        "realized_pnl": total_realized,
+        "total_pnl": total_unrealized + total_realized,
+        "total_pnl_pct": (total_unrealized + total_realized) / total_invested * 100 if total_invested > 0 else 0,
+        "position_count": len(positions),
+        "trade_stats": {
+            "total_trades": len(trades),
+            "win_rate": len(winning) / len(trades) if trades else 0,
+            "profit_factor": (
+                abs(sum(float(t.pnl) for t in winning)) /
+                abs(sum(float(t.pnl) for t in losing))
+                if losing and sum(float(t.pnl) for t in losing) != 0 else 0
+            ),
+            "winning_trades": len(winning),
+            "losing_trades": len(losing),
+        },
+    }
+
+    user_name = user.display_name or user.email
+    pdf_bytes = generate_portfolio_report(user_name, stats, pos_list)
+
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="able_portfolio_{datetime.now().strftime("%Y%m%d")}.pdf"'
+        },
+    )

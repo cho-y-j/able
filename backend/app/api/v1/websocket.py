@@ -101,19 +101,93 @@ async def agents_websocket(websocket: WebSocket, token: str = Query(...)):
 
 @router.websocket("/market/{stock_code}")
 async def market_websocket(websocket: WebSocket, stock_code: str, token: str = Query(...)):
+    """Real-time price stream for a stock.
+
+    If KIS WebSocket keys are available, streams real prices.
+    Otherwise, polls the REST API every 5 seconds.
+    """
     user_id = _authenticate_ws(token)
     if not user_id:
         await websocket.close(code=4001, reason="Unauthorized")
         return
 
     await manager.connect(websocket, user_id)
+    price_task: asyncio.Task | None = None
+
     try:
+        # Start background price streaming
+        price_task = asyncio.create_task(
+            _stream_price(websocket, user_id, stock_code)
+        )
+
         while True:
             data = await websocket.receive_text()
             msg = json.loads(data)
             if msg.get("type") == "ping":
                 await websocket.send_text(json.dumps({"type": "pong"}))
+            elif msg.get("type") == "subscribe":
+                # Client can switch stocks dynamically
+                new_code = msg.get("stock_code")
+                if new_code and new_code != stock_code:
+                    stock_code = new_code
+                    if price_task:
+                        price_task.cancel()
+                    price_task = asyncio.create_task(
+                        _stream_price(websocket, user_id, stock_code)
+                    )
     except WebSocketDisconnect:
-        manager.disconnect(websocket, user_id)
+        pass
     except Exception:
+        pass
+    finally:
+        if price_task:
+            price_task.cancel()
         manager.disconnect(websocket, user_id)
+
+
+async def _stream_price(websocket: WebSocket, user_id: str, stock_code: str):
+    """Poll KIS price API every 5s and push to WebSocket client."""
+    import logging
+    from app.db.session import async_session_factory
+    from app.services.kis_service import get_kis_client
+
+    logger = logging.getLogger(__name__)
+
+    try:
+        async with async_session_factory() as db:
+            kis = await get_kis_client(user_id, db)
+
+        while True:
+            try:
+                async with async_session_factory() as db:
+                    kis = await get_kis_client(user_id, db)
+                    price = await kis.get_price(stock_code)
+
+                await websocket.send_text(json.dumps({
+                    "type": "price_update",
+                    "stock_code": stock_code,
+                    "current_price": price.get("current_price", 0),
+                    "change": price.get("change", 0),
+                    "change_percent": price.get("change_percent", 0),
+                    "volume": price.get("volume", 0),
+                    "high": price.get("high", 0),
+                    "low": price.get("low", 0),
+                    "timestamp": price.get("time", ""),
+                }, default=str))
+            except asyncio.CancelledError:
+                return
+            except Exception as e:
+                logger.debug(f"Price stream error for {stock_code}: {e}")
+                # Send error but don't break — keep trying
+                try:
+                    await websocket.send_text(json.dumps({
+                        "type": "price_error",
+                        "stock_code": stock_code,
+                        "message": str(e),
+                    }))
+                except Exception:
+                    return
+
+            await asyncio.sleep(5)
+    except asyncio.CancelledError:
+        return

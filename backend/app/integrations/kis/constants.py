@@ -12,6 +12,7 @@ TOKEN_REVOKE_PATH = "/oauth2/revokeP"
 # Domestic stock
 STOCK_PRICE_PATH = "/uapi/domestic-stock/v1/quotations/inquire-price"
 STOCK_DAILY_PRICE_PATH = "/uapi/domestic-stock/v1/quotations/inquire-daily-price"
+STOCK_MINUTE_PRICE_PATH = "/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice"
 STOCK_ORDERBOOK_PATH = "/uapi/domestic-stock/v1/quotations/inquire-asking-price-exp-ccn"
 
 # Orders
@@ -31,3 +32,4 @@ TR_ID_BALANCE = "TTTC8434R"
 TR_ID_BALANCE_PAPER = "VTTC8434R"
 TR_ID_PRICE = "FHKST01010100"
 TR_ID_DAILY_PRICE = "FHKST01010400"
+TR_ID_MINUTE_PRICE = "FHKST03010200"
