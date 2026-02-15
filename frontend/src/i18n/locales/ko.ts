@@ -191,6 +191,20 @@ const ko: Translations = {
     pending: "대기",
     cancelled: "취소됨",
     submitted: "제출됨",
+    quickOrder: "빠른 주문",
+    refresh: "새로고침",
+    noPositionsTrading: "보유 종목이 없습니다",
+    startTradingHint: "거래를 시작하면 여기에 표시됩니다",
+    selectPositionHint: "차트를 보려면 종목을 선택하세요",
+    noChartData: "차트 데이터 없음",
+    chartFailed: "차트 로딩 실패",
+    noFilteredOrders: "주문이 없습니다",
+    shares: "주",
+    chart: "차트",
+    positions: "보유 종목",
+    filterAll: "전체",
+    orderSuccess: "주문이 성공적으로 접수되었습니다!",
+    confirmOrder: "이 주문을 접수하시겠습니까?",
   },
 
   paper: {
@@ -330,6 +344,17 @@ const ko: Translations = {
     reject: "거부",
     pendingApproval: "승인 대기",
     sessionId: "세션",
+    teamDesc: "Team Leader가 5명의 전문 에이전트를 조율하여 자동매매를 수행합니다",
+    sessionActive: "세션 활성",
+    sessionInfo: "세션 정보",
+    sessionType: "유형",
+    iterations: "반복",
+    regime: "시장 체제",
+    currentlyActive: "현재 활성 중...",
+    startFailed: "에이전트 시작에 실패했습니다",
+    pendingActions: "승인 대기",
+    noPendingActions: "승인 대기 항목이 없습니다",
+    approvalRequired: "승인 필요",
   },
 
   notifications: {
@@ -432,6 +457,13 @@ const ko: Translations = {
     runCompare: "비교 실행",
     ranking: "순위",
     noRecipes: "레시피가 없습니다",
+  },
+
+  theme: {
+    title: "테마",
+    dark: "다크",
+    light: "라이트",
+    system: "시스템",
   },
 };
 

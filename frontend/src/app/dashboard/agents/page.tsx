@@ -4,6 +4,22 @@ import { useState, useEffect } from "react";
 import api from "@/lib/api";
 import { useI18n } from "@/i18n";
 
+interface AgentAction {
+  agent: string;
+  action: string;
+  timestamp: string;
+}
+
+interface PendingApproval {
+  id: string;
+  action_type: string;
+  stock_code: string;
+  side: string;
+  quantity: number;
+  reason: string;
+  created_at: string;
+}
+
 interface AgentStatus {
   session_id: string;
   status: string;
@@ -12,7 +28,8 @@ interface AgentStatus {
   market_regime: string | null;
   iteration_count: number;
   started_at: string;
-  recent_actions: Array<{ agent: string; action: string; timestamp: string }>;
+  recent_actions: AgentAction[];
+  pending_approvals?: PendingApproval[];
 }
 
 const AGENTS = [
@@ -23,11 +40,19 @@ const AGENTS = [
   { name: "Monitor", key: "monitor", desc: "Monitors positions in real-time", color: "purple" },
 ];
 
+type MessageType = { text: string; type: "success" | "error" } | null;
+
 export default function AgentsPage() {
   const { t } = useI18n();
   const [status, setStatus] = useState<AgentStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [polling, setPolling] = useState(false);
+  const [message, setMessage] = useState<MessageType>(null);
+
+  const showMessage = (text: string, type: "success" | "error") => {
+    setMessage({ text, type });
+    setTimeout(() => setMessage(null), 5000);
+  };
 
   const fetchStatus = async () => {
     try {
@@ -54,9 +79,8 @@ export default function AgentsPage() {
       const { data } = await api.post("/agents/start", { session_type: "full_cycle" });
       setStatus(data);
       setPolling(true);
-    } catch (err: unknown) {
-      const error = err as { response?: { data?: { detail?: string } } };
-      alert(error.response?.data?.detail || "Failed to start agent session");
+    } catch {
+      showMessage(t.agents.startFailed, "error");
     } finally {
       setLoading(false);
     }
@@ -73,7 +97,18 @@ export default function AgentsPage() {
     }
   };
 
+  const handleApproval = async (id: string, approved: boolean) => {
+    try {
+      await api.post(`/agents/approvals/${id}`, { approved });
+      showMessage(approved ? t.agents.approve : t.agents.reject, "success");
+      fetchStatus();
+    } catch {
+      showMessage(t.common.error, "error");
+    }
+  };
+
   const isActive = status?.status === "active";
+  const pendingApprovals = status?.pending_approvals || [];
 
   return (
     <div>
@@ -81,7 +116,7 @@ export default function AgentsPage() {
         <div>
           <h2 className="text-2xl font-bold">{t.agents.title}</h2>
           <p className="text-gray-500 text-sm mt-1">
-            Team Leader coordinates 5 specialized agents for automated trading
+            {t.agents.teamDesc}
           </p>
         </div>
         {isActive ? (
@@ -97,6 +132,17 @@ export default function AgentsPage() {
         )}
       </div>
 
+      {/* Toast message */}
+      {message && (
+        <div className={`mb-4 p-4 rounded-lg text-sm font-medium ${
+          message.type === "success"
+            ? "bg-green-900/40 text-green-400 border border-green-700"
+            : "bg-red-900/40 text-red-400 border border-red-700"
+        }`}>
+          {message.text}
+        </div>
+      )}
+
       {/* Status Banner */}
       {status && (
         <div className={`p-4 rounded-xl border mb-6 ${
@@ -104,16 +150,55 @@ export default function AgentsPage() {
         }`}>
           <div className="flex items-center gap-4">
             <div className={`w-3 h-3 rounded-full ${isActive ? "bg-green-400 animate-pulse" : "bg-gray-600"}`} />
-            <div>
-              <p className="font-medium">{isActive ? "Session Active" : `Session ${status.status}`}</p>
+            <div className="flex-1">
+              <p className="font-medium">{isActive ? t.agents.sessionActive : `${t.agents.sessionId} ${status.status}`}</p>
               <p className="text-sm text-gray-500">
-                Type: {status.session_type} | Iterations: {status.iteration_count}
-                {status.market_regime && ` | Regime: ${status.market_regime}`}
+                {t.agents.sessionType}: {status.session_type} | {t.agents.iterations}: {status.iteration_count}
+                {status.market_regime && ` | ${t.agents.regime}: ${status.market_regime}`}
               </p>
             </div>
           </div>
         </div>
       )}
+
+      {/* Pending Approvals */}
+      <div className="bg-gray-900 rounded-xl border border-gray-800 p-6 mb-6">
+        <h3 className="text-lg font-semibold mb-4">{t.agents.pendingActions}</h3>
+        {pendingApprovals.length > 0 ? (
+          <div className="space-y-3">
+            {pendingApprovals.map((approval) => (
+              <div key={approval.id} className="p-4 bg-yellow-900/20 border border-yellow-700 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
+                    <span className="font-medium text-yellow-400">{t.agents.approvalRequired}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleApproval(approval.id, true)}
+                      className="px-4 py-1.5 bg-green-600 hover:bg-green-700 rounded text-sm font-medium transition-colors"
+                    >
+                      {t.agents.approve}
+                    </button>
+                    <button
+                      onClick={() => handleApproval(approval.id, false)}
+                      className="px-4 py-1.5 bg-red-600 hover:bg-red-700 rounded text-sm font-medium transition-colors"
+                    >
+                      {t.agents.reject}
+                    </button>
+                  </div>
+                </div>
+                <p className="text-sm text-gray-300">
+                  {approval.action_type}: {approval.stock_code} {approval.side.toUpperCase()} x{approval.quantity}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">{approval.reason}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-gray-600 text-sm">{t.agents.noPendingActions}</p>
+        )}
+      </div>
 
       {/* Agent Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
@@ -134,7 +219,7 @@ export default function AgentsPage() {
               </div>
               <p className="text-sm text-gray-500">{agent.desc}</p>
               {isCurrent && (
-                <p className="text-xs text-blue-400 mt-2 animate-pulse">Currently active...</p>
+                <p className="text-xs text-blue-400 mt-2 animate-pulse">{t.agents.currentlyActive}</p>
               )}
             </div>
           );

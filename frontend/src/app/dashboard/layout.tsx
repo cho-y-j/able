@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
 import { useNotifications, Toast } from "@/lib/useNotifications";
 import { useI18n, type Locale } from "@/i18n";
+import { useThemeStore, applyTheme, type Theme } from "@/store/theme";
 
 const navKeys = [
   { href: "/dashboard", key: "dashboard" as const, icon: "H" },
@@ -39,9 +40,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { unreadCount, toasts, dismissToast } = useNotifications();
   const { t, locale, setLocale } = useI18n();
+  const { theme, setTheme } = useThemeStore();
+
+  // Apply theme on mount and changes
+  useState(() => { applyTheme(theme); });
 
   return (
-    <div className="min-h-screen flex bg-gray-950 text-white">
+    <div className="min-h-screen flex bg-gray-950 text-white dark:bg-gray-950 dark:text-white">
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
@@ -112,7 +117,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Language toggle + user */}
         <div className="p-4 border-t border-gray-800">
-          <div className="flex items-center gap-1 mb-3">
+          <div className="flex items-center gap-1 mb-2">
             {(["ko", "en"] as Locale[]).map((lang) => (
               <button
                 key={lang}
@@ -124,6 +129,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 }`}
               >
                 {lang === "ko" ? "한국어" : "English"}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-1 mb-3">
+            {(["dark", "light", "system"] as Theme[]).map((th) => (
+              <button
+                key={th}
+                onClick={() => setTheme(th)}
+                className={`flex-1 py-1 text-xs rounded transition-colors ${
+                  theme === th
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-800 text-gray-400 hover:text-white"
+                }`}
+              >
+                {t.theme[th]}
               </button>
             ))}
           </div>

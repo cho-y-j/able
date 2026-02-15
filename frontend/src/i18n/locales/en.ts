@@ -189,6 +189,20 @@ const en = {
     pending: "Pending",
     cancelled: "Cancelled",
     submitted: "Submitted",
+    quickOrder: "Quick Order",
+    refresh: "Refresh",
+    noPositionsTrading: "No open positions",
+    startTradingHint: "Start trading to see positions here",
+    selectPositionHint: "Select a position to view chart",
+    noChartData: "No chart data available",
+    chartFailed: "Failed to load chart",
+    noFilteredOrders: "No orders",
+    shares: "shares",
+    chart: "Chart",
+    positions: "Positions",
+    filterAll: "All",
+    orderSuccess: "Order placed successfully!",
+    confirmOrder: "Are you sure you want to place this order?",
   },
 
   paper: {
@@ -328,6 +342,17 @@ const en = {
     reject: "Reject",
     pendingApproval: "Pending Approval",
     sessionId: "Session",
+    teamDesc: "Team Leader coordinates 5 specialized agents for automated trading",
+    sessionActive: "Session Active",
+    sessionInfo: "Session Info",
+    sessionType: "Type",
+    iterations: "Iterations",
+    regime: "Regime",
+    currentlyActive: "Currently active...",
+    startFailed: "Failed to start agent session",
+    pendingActions: "Pending Approvals",
+    noPendingActions: "No pending approvals",
+    approvalRequired: "Approval Required",
   },
 
   notifications: {
@@ -430,6 +455,13 @@ const en = {
     runCompare: "Run Comparison",
     ranking: "Ranking",
     noRecipes: "No recipes available",
+  },
+
+  theme: {
+    title: "Theme",
+    dark: "Dark",
+    light: "Light",
+    system: "System",
   },
 };
 

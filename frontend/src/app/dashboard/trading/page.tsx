@@ -8,6 +8,8 @@ import { CHART_COLORS, DEFAULT_CHART_OPTIONS, formatKRW, formatPct } from "@/lib
 import api from "@/lib/api";
 import { useI18n } from "@/i18n";
 
+type MessageType = { text: string; type: "success" | "error" } | null;
+
 export default function TradingPage() {
   const { t } = useI18n();
   const {
@@ -18,6 +20,15 @@ export default function TradingPage() {
   const token = useAuthStore((s) => s.token);
   const [activeTab, setActiveTab] = useState<"positions" | "orders">("positions");
   const [orderFilter, setOrderFilter] = useState<string>("all");
+
+  // Quick order form state
+  const [orderStock, setOrderStock] = useState("");
+  const [orderSide, setOrderSide] = useState<"buy" | "sell">("buy");
+  const [orderType, setOrderType] = useState<"market" | "limit">("market");
+  const [orderQty, setOrderQty] = useState("");
+  const [orderPrice, setOrderPrice] = useState("");
+  const [orderSubmitting, setOrderSubmitting] = useState(false);
+  const [orderMsg, setOrderMsg] = useState<MessageType>(null);
 
   useEffect(() => {
     fetchPositions();
@@ -58,6 +69,36 @@ export default function TradingPage() {
     }
   }, [positions, selectedStock, setSelectedStock]);
 
+  // Pre-fill order stock from selected position
+  useEffect(() => {
+    if (selectedStock) setOrderStock(selectedStock);
+  }, [selectedStock]);
+
+  const handleOrder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!confirm(t.trading.confirmOrder)) return;
+    setOrderSubmitting(true);
+    setOrderMsg(null);
+    try {
+      await api.post("/trading/orders", {
+        stock_code: orderStock,
+        side: orderSide,
+        order_type: orderType,
+        quantity: parseInt(orderQty),
+        limit_price: orderType === "limit" ? parseInt(orderPrice) : null,
+      });
+      setOrderMsg({ text: t.trading.orderSuccess, type: "success" });
+      setOrderQty("");
+      setOrderPrice("");
+      fetchOrders();
+      fetchPositions();
+    } catch {
+      setOrderMsg({ text: t.trading.orderFailed, type: "error" });
+    } finally {
+      setOrderSubmitting(false);
+    }
+  };
+
   const totalUnrealized = positions.reduce((s, p) => s + (p.unrealized_pnl || 0), 0);
   const totalValue = positions.reduce((s, p) => s + (p.current_price || p.avg_cost_price) * p.quantity, 0);
   const activeOrders = orders.filter((o) => o.status === "submitted" || o.status === "pending");
@@ -69,12 +110,12 @@ export default function TradingPage() {
         <h2 className="text-xl sm:text-2xl font-bold">{t.trading.title}</h2>
         <div className="flex items-center gap-2 text-xs text-gray-500">
           <span className="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-          Live
+          {t.market.live}
           <button
             onClick={() => { fetchPositions(); fetchOrders(); fetchPortfolioStats(); }}
             className="ml-2 px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-gray-300 transition-colors"
           >
-            Refresh
+            {t.trading.refresh}
           </button>
         </div>
       </div>
@@ -106,20 +147,18 @@ export default function TradingPage() {
 
       {/* Chart + Positions layout */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6">
-        {/* Chart section (takes 2/3 on XL) */}
         <div className="xl:col-span-2">
           <StockChart stockCode={selectedStock} />
         </div>
 
-        {/* Position list (takes 1/3 on XL) */}
         <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 sm:p-5 overflow-hidden">
           <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">
             {t.portfolio.positionCount} ({positions.length})
           </h3>
           {positions.length === 0 ? (
             <div className="text-center py-8 text-gray-600 text-sm">
-              <p>No open positions</p>
-              <p className="mt-1 text-xs">Start trading to see positions here</p>
+              <p>{t.trading.noPositionsTrading}</p>
+              <p className="mt-1 text-xs">{t.trading.startTradingHint}</p>
             </div>
           ) : (
             <div className="space-y-2 max-h-[400px] overflow-y-auto">
@@ -136,13 +175,121 @@ export default function TradingPage() {
         </div>
       </div>
 
+      {/* Quick Order Panel */}
+      <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 sm:p-6">
+        <h3 className="text-lg font-semibold mb-4">{t.trading.quickOrder}</h3>
+
+        {orderMsg && (
+          <div className={`mb-4 p-3 rounded-lg text-sm font-medium ${
+            orderMsg.type === "success"
+              ? "bg-green-900/40 text-green-400 border border-green-700"
+              : "bg-red-900/40 text-red-400 border border-red-700"
+          }`}>
+            {orderMsg.text}
+          </div>
+        )}
+
+        <form onSubmit={handleOrder} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-end">
+          <div>
+            <label htmlFor="order-stock" className="block text-xs text-gray-500 mb-1">{t.trading.stockCode}</label>
+            <input
+              id="order-stock"
+              type="text"
+              value={orderStock}
+              onChange={(e) => setOrderStock(e.target.value)}
+              placeholder={t.trading.stockCodePlaceholder}
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">{t.common.side}</label>
+            <div className="flex gap-1">
+              <button
+                type="button"
+                onClick={() => setOrderSide("buy")}
+                className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                  orderSide === "buy"
+                    ? "bg-green-600 text-white"
+                    : "bg-gray-800 text-gray-400 hover:text-white"
+                }`}
+              >
+                {t.common.buy}
+              </button>
+              <button
+                type="button"
+                onClick={() => setOrderSide("sell")}
+                className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                  orderSide === "sell"
+                    ? "bg-red-600 text-white"
+                    : "bg-gray-800 text-gray-400 hover:text-white"
+                }`}
+              >
+                {t.common.sell}
+              </button>
+            </div>
+          </div>
+          <div>
+            <label htmlFor="order-type" className="block text-xs text-gray-500 mb-1">{t.trading.orderType}</label>
+            <select
+              id="order-type"
+              value={orderType}
+              onChange={(e) => setOrderType(e.target.value as "market" | "limit")}
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
+            >
+              <option value="market">{t.trading.marketOrder}</option>
+              <option value="limit">{t.trading.limitOrder}</option>
+            </select>
+          </div>
+          <div>
+            <label htmlFor="order-qty" className="block text-xs text-gray-500 mb-1">{t.trading.quantity}</label>
+            <input
+              id="order-qty"
+              type="number"
+              min="1"
+              value={orderQty}
+              onChange={(e) => setOrderQty(e.target.value)}
+              placeholder="0"
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor="order-price" className="block text-xs text-gray-500 mb-1">{t.trading.limitPrice}</label>
+            <input
+              id="order-price"
+              type="number"
+              min="0"
+              value={orderPrice}
+              onChange={(e) => setOrderPrice(e.target.value)}
+              placeholder={orderType === "market" ? "--" : "0"}
+              disabled={orderType === "market"}
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500 disabled:opacity-50"
+              required={orderType === "limit"}
+            />
+          </div>
+          <div>
+            <button
+              type="submit"
+              disabled={orderSubmitting}
+              className={`w-full py-2 rounded-lg text-sm font-bold transition-colors ${
+                orderSide === "buy"
+                  ? "bg-green-600 hover:bg-green-700 disabled:bg-gray-700"
+                  : "bg-red-600 hover:bg-red-700 disabled:bg-gray-700"
+              }`}
+            >
+              {orderSubmitting ? t.trading.submitting : t.trading.submitOrder}
+            </button>
+          </div>
+        </form>
+      </div>
+
       {/* Orders section */}
       <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 sm:p-6">
-        {/* Tabs & Filter */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
           <div className="flex gap-1 bg-gray-800 rounded-lg p-1">
             <TabButton active={activeTab === "positions"} onClick={() => setActiveTab("positions")}>
-              Positions
+              {t.trading.positions}
             </TabButton>
             <TabButton active={activeTab === "orders"} onClick={() => setActiveTab("orders")}>
               {t.trading.openOrders} ({orders.length})
@@ -160,7 +307,7 @@ export default function TradingPage() {
                       : "bg-gray-800 text-gray-400 hover:text-white"
                   }`}
                 >
-                  {f === "all" ? "All" : f.charAt(0).toUpperCase() + f.slice(1)}
+                  {f === "all" ? t.trading.filterAll : f.charAt(0).toUpperCase() + f.slice(1)}
                 </button>
               ))}
             </div>
@@ -213,6 +360,7 @@ function TabButton({ active, onClick, children }: {
 function PositionCard({ position: p, isSelected, onSelect }: {
   position: Position; isSelected: boolean; onSelect: () => void;
 }) {
+  const { t } = useI18n();
   const pnlPct = p.current_price && p.avg_cost_price
     ? ((p.current_price - p.avg_cost_price) / p.avg_cost_price * 100) : 0;
   const pnlColor = (p.unrealized_pnl || 0) >= 0 ? "text-green-400" : "text-red-400";
@@ -228,7 +376,6 @@ function PositionCard({ position: p, isSelected, onSelect }: {
           : "bg-gray-800/50 border border-transparent hover:border-gray-700"
       }`}
     >
-      {/* P&L bar background */}
       <div
         className={`absolute inset-y-0 left-0 ${barColor} transition-all`}
         style={{ width: `${barWidth}%` }}
@@ -236,7 +383,7 @@ function PositionCard({ position: p, isSelected, onSelect }: {
       <div className="relative flex items-center justify-between">
         <div>
           <p className="text-sm font-medium">{p.stock_name || p.stock_code}</p>
-          <p className="text-xs text-gray-500">{p.stock_code} &middot; {p.quantity}주</p>
+          <p className="text-xs text-gray-500">{p.stock_code} · {p.quantity}{t.trading.shares}</p>
         </div>
         <div className="text-right">
           <p className={`text-sm font-semibold ${pnlColor}`}>
@@ -252,6 +399,7 @@ function PositionCard({ position: p, isSelected, onSelect }: {
 }
 
 function StockChart({ stockCode }: { stockCode: string | null }) {
+  const { t } = useI18n();
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<unknown>(null);
   const [loading, setLoading] = useState(false);
@@ -268,7 +416,7 @@ function StockChart({ stockCode }: { stockCode: string | null }) {
       const ohlcv = data.data || [];
 
       if (ohlcv.length === 0) {
-        setError("No chart data available");
+        setError(t.trading.noChartData);
         setLoading(false);
         return;
       }
@@ -329,10 +477,10 @@ function StockChart({ stockCode }: { stockCode: string | null }) {
       setLoading(false);
       return () => window.removeEventListener("resize", handleResize);
     } catch {
-      setError("Failed to load chart");
+      setError(t.trading.chartFailed);
       setLoading(false);
     }
-  }, [stockCode]);
+  }, [stockCode, t]);
 
   useEffect(() => {
     renderChart();
@@ -342,7 +490,7 @@ function StockChart({ stockCode }: { stockCode: string | null }) {
     <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 sm:p-5">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide">
-          {stockCode ? `Chart — ${stockCode}` : "Chart"}
+          {stockCode ? `${t.trading.chart} — ${stockCode}` : t.trading.chart}
         </h3>
         {stockCode && (
           <span className="text-xs text-gray-600">3M</span>
@@ -351,7 +499,7 @@ function StockChart({ stockCode }: { stockCode: string | null }) {
       <div ref={chartContainerRef} className="w-full rounded-lg overflow-hidden" style={{ minHeight: 320 }}>
         {!stockCode && (
           <div className="h-80 flex items-center justify-center border border-gray-800 rounded-lg">
-            <p className="text-gray-600 text-sm">Select a position to view chart</p>
+            <p className="text-gray-600 text-sm">{t.trading.selectPositionHint}</p>
           </div>
         )}
         {loading && (
@@ -372,8 +520,9 @@ function StockChart({ stockCode }: { stockCode: string | null }) {
 function PositionsTable({ positions, onSelect, selectedStock }: {
   positions: Position[]; onSelect: (code: string) => void; selectedStock: string | null;
 }) {
+  const { t } = useI18n();
   if (positions.length === 0) {
-    return <p className="text-gray-600 text-sm py-4">No open positions</p>;
+    return <p className="text-gray-600 text-sm py-4">{t.trading.noPositionsTrading}</p>;
   }
 
   return (
@@ -381,12 +530,12 @@ function PositionsTable({ positions, onSelect, selectedStock }: {
       <table className="w-full text-sm min-w-[600px]">
         <thead>
           <tr className="text-gray-500 text-xs uppercase border-b border-gray-800">
-            <th className="text-left py-2 px-4 sm:px-6">Stock</th>
-            <th className="text-right py-2 px-2">Qty</th>
-            <th className="text-right py-2 px-2">Avg Cost</th>
-            <th className="text-right py-2 px-2">Current</th>
-            <th className="text-right py-2 px-2">P&L</th>
-            <th className="text-right py-2 px-4 sm:px-6">P&L %</th>
+            <th className="text-left py-2 px-4 sm:px-6">{t.common.stock}</th>
+            <th className="text-right py-2 px-2">{t.common.qty}</th>
+            <th className="text-right py-2 px-2">{t.dashboard.avgCost}</th>
+            <th className="text-right py-2 px-2">{t.dashboard.current}</th>
+            <th className="text-right py-2 px-2">{t.dashboard.pnl}</th>
+            <th className="text-right py-2 px-4 sm:px-6">{t.portfolio.pnlPct}</th>
           </tr>
         </thead>
         <tbody>
@@ -427,8 +576,9 @@ function PositionsTable({ positions, onSelect, selectedStock }: {
 }
 
 function OrdersTable({ orders }: { orders: Order[] }) {
+  const { t } = useI18n();
   if (orders.length === 0) {
-    return <p className="text-gray-600 text-sm py-4">No orders</p>;
+    return <p className="text-gray-600 text-sm py-4">{t.trading.noFilteredOrders}</p>;
   }
 
   return (
@@ -436,13 +586,13 @@ function OrdersTable({ orders }: { orders: Order[] }) {
       <table className="w-full text-sm min-w-[700px]">
         <thead>
           <tr className="text-gray-500 text-xs uppercase border-b border-gray-800">
-            <th className="text-left py-2 px-4 sm:px-6">Time</th>
-            <th className="text-left py-2 px-2">Stock</th>
-            <th className="text-left py-2 px-2">Side</th>
-            <th className="text-right py-2 px-2">Qty</th>
-            <th className="text-right py-2 px-2">Price</th>
-            <th className="text-right py-2 px-2">Filled</th>
-            <th className="text-left py-2 px-4 sm:px-6">Status</th>
+            <th className="text-left py-2 px-4 sm:px-6">{t.common.date}</th>
+            <th className="text-left py-2 px-2">{t.common.stock}</th>
+            <th className="text-left py-2 px-2">{t.common.side}</th>
+            <th className="text-right py-2 px-2">{t.common.qty}</th>
+            <th className="text-right py-2 px-2">{t.common.price}</th>
+            <th className="text-right py-2 px-2">{t.trading.filled}</th>
+            <th className="text-left py-2 px-4 sm:px-6">{t.common.status}</th>
           </tr>
         </thead>
         <tbody>
@@ -465,7 +615,7 @@ function OrdersTable({ orders }: { orders: Order[] }) {
               </td>
               <td className="text-right px-2">{o.quantity.toLocaleString()}</td>
               <td className="text-right px-2 text-gray-400">
-                {o.limit_price ? `₩${o.limit_price.toLocaleString()}` : "Market"}
+                {o.limit_price ? `₩${o.limit_price.toLocaleString()}` : t.trading.marketOrder}
               </td>
               <td className="text-right px-2">
                 {o.filled_quantity > 0 ? (
