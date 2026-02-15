@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import api from "@/lib/api";
 import { formatKRW, formatPct, metricColor } from "@/lib/charts";
 import { useI18n } from "@/i18n";
+import RebalancingTab from "./_components/RebalancingTab";
 
 interface PortfolioData {
   portfolio_value: number;
@@ -84,7 +85,7 @@ export default function PortfolioPage() {
   const [stratData, setStratData] = useState<StrategyPortfolio | null>(null);
   const [attribution, setAttribution] = useState<AttributionData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"overview" | "strategies" | "trades" | "risk">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "strategies" | "trades" | "risk" | "rebalancing">("overview");
 
   useEffect(() => {
     fetchData();
@@ -131,7 +132,7 @@ export default function PortfolioPage() {
 
       {/* Tabs */}
       <div className="flex gap-2 mb-4">
-        {(["overview", "strategies", "trades", "risk"] as const).map((tab) => (
+        {(["overview", "strategies", "trades", "risk", "rebalancing"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -141,7 +142,7 @@ export default function PortfolioPage() {
                 : "bg-gray-800 text-gray-400 hover:text-white"
             }`}
           >
-            {tab === "overview" ? t.portfolio.overview : tab === "strategies" ? t.portfolio.byStrategy : tab === "trades" ? t.portfolio.tradeHistory : t.portfolio.riskAnalysis}
+            {tab === "overview" ? t.portfolio.overview : tab === "strategies" ? t.portfolio.byStrategy : tab === "trades" ? t.portfolio.tradeHistory : tab === "risk" ? t.portfolio.riskAnalysis : t.portfolio.rebalancing}
           </button>
         ))}
       </div>
@@ -282,6 +283,8 @@ export default function PortfolioPage() {
       )}
 
       {activeTab === "risk" && <RiskTab />}
+
+      {activeTab === "rebalancing" && <RebalancingTab />}
 
       {activeTab === "trades" && (
         <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">

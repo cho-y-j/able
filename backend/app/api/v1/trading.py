@@ -23,6 +23,12 @@ from app.analysis.portfolio.aggregator import PortfolioAggregator, StrategyExpos
 from app.analysis.portfolio.correlation import StrategyCorrelation
 from app.analysis.portfolio.attribution import PerformanceAttribution
 from app.analysis.risk.var import full_risk_report, STRESS_SCENARIOS
+from app.services.rebalancing_service import RebalancingService
+from app.schemas.rebalancing import (
+    RecipeAllocationResponse,
+    RecipeConflictResponse,
+    RebalancingSuggestionResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -662,3 +668,39 @@ async def portfolio_report_pdf(
             "Content-Disposition": f'attachment; filename="able_portfolio_{datetime.now().strftime("%Y%m%d")}.pdf"'
         },
     )
+
+
+# ─── Recipe-level Portfolio Rebalancing ──────────────────────
+
+
+@router.get("/portfolio/recipe-allocations", response_model=RecipeAllocationResponse,
+            summary="Recipe-level allocation vs target weights")
+async def portfolio_recipe_allocations(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Compute target vs actual allocations for all active recipes."""
+    data = await RebalancingService.compute_allocations(user.id, db)
+    return data
+
+
+@router.get("/portfolio/recipe-conflicts", response_model=RecipeConflictResponse,
+            summary="Detect stock conflicts between active recipes")
+async def portfolio_recipe_conflicts(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Detect overlapping stock codes between active recipes."""
+    data = await RebalancingService.detect_conflicts(user.id, db)
+    return data
+
+
+@router.get("/portfolio/rebalancing", response_model=RebalancingSuggestionResponse,
+            summary="Rebalancing suggestions based on drift")
+async def portfolio_rebalancing(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Generate buy/sell/hold suggestions to rebalance recipe allocations."""
+    data = await RebalancingService.suggest_rebalancing(user.id, db)
+    return data
