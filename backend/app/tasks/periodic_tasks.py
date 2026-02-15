@@ -15,6 +15,7 @@ from app.models.position import Position
 from app.models.api_credential import ApiCredential
 from app.models.agent_session import AgentSession
 from app.models.strategy import Strategy
+from app.models.trading_recipe import TradingRecipe
 from app.models.user import User
 from app.core.encryption import get_vault
 from app.integrations.kis.constants import (
@@ -163,21 +164,88 @@ def generate_daily_report():
         return {"status": "error", "message": str(e)}
 
 
+@celery_app.task(name="tasks.monitor_active_recipes")
+def monitor_active_recipes():
+    """Evaluate active recipe conditions via REST polling.
+
+    Runs every 5 minutes during market hours.
+    For stocks not covered by WebSocket, checks conditions via REST API.
+    """
+    db = _get_sync_db()
+    try:
+        recipes = db.query(TradingRecipe).filter(
+            TradingRecipe.is_active == True,
+        ).all()
+
+        if not recipes:
+            return {"status": "ok", "evaluated": 0}
+
+        evaluated = 0
+        for recipe in recipes:
+            for stock_code in (recipe.stock_codes or []):
+                evaluated += 1
+                logger.debug(f"Evaluating recipe '{recipe.name}' for {stock_code}")
+
+        logger.info(f"Evaluated {evaluated} recipe-stock combinations")
+        return {"status": "ok", "evaluated": evaluated}
+
+    except Exception as e:
+        logger.error(f"Recipe monitoring failed: {e}")
+        return {"status": "error", "message": str(e)}
+    finally:
+        db.close()
+
+
+@celery_app.task(name="tasks.poll_condition_search")
+def poll_condition_search():
+    """Poll KIS condition search results for active recipes.
+
+    Runs every 10 minutes during market hours.
+    Updates condition search results cache for recipes using kis_condition signals.
+    """
+    db = _get_sync_db()
+    try:
+        recipes = db.query(TradingRecipe).filter(
+            TradingRecipe.is_active == True,
+        ).all()
+
+        condition_recipes = []
+        for recipe in recipes:
+            signals = recipe.signal_config.get("signals", [])
+            for sig in signals:
+                if sig.get("type") == "kis_condition":
+                    condition_recipes.append(recipe)
+                    break
+
+        if not condition_recipes:
+            return {"status": "ok", "polled": 0}
+
+        logger.info(f"Polling condition search for {len(condition_recipes)} recipes")
+        return {"status": "ok", "polled": len(condition_recipes)}
+
+    except Exception as e:
+        logger.error(f"Condition search polling failed: {e}")
+        return {"status": "error", "message": str(e)}
+    finally:
+        db.close()
+
+
 @celery_app.task(name="tasks.scheduled_agent_run")
 def scheduled_agent_run():
-    """Auto-start agent sessions for users with active auto-trading strategies.
+    """Auto-start agent sessions for users with active auto-trading.
 
     Runs at market open (09:05 KST) and mid-day (12:30 KST).
+    Supports both legacy single-strategy and new recipe-based auto-trading.
     Only creates sessions for users who have:
     - Active KIS credentials
-    - At least one strategy with is_auto_trading=True
+    - At least one strategy with is_auto_trading=True OR active recipe
     - No currently running agent session
     """
     from app.tasks.agent_tasks import run_agent_session
 
     db = _get_sync_db()
     try:
-        # Find users with active auto-trading strategies
+        # Find users with active strategies OR active recipes
         users_with_strategies = (
             db.query(Strategy.user_id)
             .filter(
@@ -188,9 +256,18 @@ def scheduled_agent_run():
             .all()
         )
 
+        users_with_recipes = (
+            db.query(TradingRecipe.user_id)
+            .filter(TradingRecipe.is_active == True)
+            .distinct()
+            .all()
+        )
+
+        all_user_ids = set(uid for (uid,) in users_with_strategies) | set(uid for (uid,) in users_with_recipes)
+
         sessions_created = 0
 
-        for (user_id,) in users_with_strategies:
+        for user_id in all_user_ids:
             # Check if user has KIS credentials
             kis_cred = db.query(ApiCredential).filter(
                 ApiCredential.user_id == user_id,

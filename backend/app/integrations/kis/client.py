@@ -7,9 +7,11 @@ from app.integrations.kis.constants import (
     STOCK_ORDERBOOK_PATH,
     BALANCE_PATH,
     ORDER_PATH, ORDER_CANCEL_PATH,
+    CONDITION_LIST_PATH, CONDITION_RESULT_PATH,
     TR_ID_BUY, TR_ID_SELL, TR_ID_BUY_PAPER, TR_ID_SELL_PAPER,
     TR_ID_BALANCE, TR_ID_BALANCE_PAPER, TR_ID_PRICE, TR_ID_DAILY_PRICE,
     TR_ID_MINUTE_PRICE,
+    TR_ID_CONDITION_LIST, TR_ID_CONDITION_RESULT,
 )
 
 
@@ -225,3 +227,41 @@ class KISClient:
             "success": data.get("rt_cd") == "0",
             "message": data.get("msg1", ""),
         }
+
+    async def get_condition_list(self) -> list[dict]:
+        """Get saved condition search list (조건검색 목록 조회).
+
+        Returns list of condition search presets saved in the KIS HTS/MTS.
+        """
+        params = {
+            "user_id": "",
+        }
+        data = await self._request("GET", CONDITION_LIST_PATH, TR_ID_CONDITION_LIST, params=params)
+        items = data.get("output2", [])
+        return [{
+            "condition_id": item.get("condition_seq", ""),
+            "condition_name": item.get("condition_nm", ""),
+        } for item in items if item.get("condition_seq")]
+
+    async def run_condition_search(self, condition_id: str) -> list[dict]:
+        """Execute condition search and return matching stocks (조건검색 실행).
+
+        Args:
+            condition_id: Condition sequence ID from get_condition_list
+
+        Returns:
+            List of matching stocks with code, name, price, volume info
+        """
+        params = {
+            "user_id": "",
+            "seq": condition_id,
+        }
+        data = await self._request("GET", CONDITION_RESULT_PATH, TR_ID_CONDITION_RESULT, params=params)
+        items = data.get("output2", [])
+        return [{
+            "stock_code": item.get("stck_shrn_iscd", ""),
+            "stock_name": item.get("hts_kor_isnm", ""),
+            "current_price": float(item.get("stck_prpr", 0)),
+            "change_percent": float(item.get("prdy_ctrt", 0)),
+            "volume": int(item.get("acml_vol", 0)),
+        } for item in items if item.get("stck_shrn_iscd")]

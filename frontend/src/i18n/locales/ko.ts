@@ -34,6 +34,7 @@ const ko: Translations = {
     dashboard: "대시보드",
     market: "시장",
     strategies: "전략",
+    recipes: "나만의 기법",
     backtests: "백테스트",
     trading: "거래",
     paper: "모의투자",

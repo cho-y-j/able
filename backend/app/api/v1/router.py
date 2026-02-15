@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1 import auth, api_keys, strategies, backtests, trading, agents, market_data, websocket, paper, notifications, analysis
+from app.api.v1 import auth, api_keys, strategies, backtests, trading, agents, market_data, websocket, paper, notifications, analysis, recipes
 
 api_router = APIRouter()
 
@@ -14,3 +14,4 @@ api_router.include_router(websocket.router, prefix="/ws", tags=["websocket"])
 api_router.include_router(paper.router, prefix="/paper", tags=["paper-trading"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
 api_router.include_router(analysis.router, prefix="/analysis", tags=["analysis"])
+api_router.include_router(recipes.router, prefix="/recipes", tags=["recipes"])

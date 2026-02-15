@@ -36,6 +36,35 @@ logger = logging.getLogger("able.strategy_search")
 _search_jobs: dict[str, dict[str, Any]] = {}
 
 
+async def fetch_ohlcv_data(
+    stock_code: str,
+    data_source: str = "yahoo",
+    period: str = "1y",
+    date_range_start: str | None = None,
+    date_range_end: str | None = None,
+) -> "pd.DataFrame | None":
+    """Async helper to fetch OHLCV data for a stock.
+
+    Returns a DataFrame with columns [open, high, low, close, volume]
+    or None if data is insufficient (< 60 bars).
+    """
+    import asyncio
+    import pandas as pd  # noqa: F811
+
+    from app.integrations.data.factory import get_data_provider
+
+    def _fetch():
+        provider = get_data_provider(data_source)
+        if date_range_start and date_range_end:
+            return provider.get_ohlcv(stock_code, date_range_start, date_range_end)
+        return provider.get_ohlcv(stock_code, period=period)
+
+    df = await asyncio.to_thread(_fetch)
+    if df is None or df.empty or len(df) < 60:
+        return None
+    return df
+
+
 def get_job_status(job_id: str) -> dict | None:
     return _search_jobs.get(job_id)
 

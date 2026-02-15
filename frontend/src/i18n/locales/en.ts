@@ -32,6 +32,7 @@ const en = {
     dashboard: "Dashboard",
     market: "Market",
     strategies: "Strategies",
+    recipes: "My Recipes",
     backtests: "Backtests",
     trading: "Trading",
     paper: "Paper Trading",

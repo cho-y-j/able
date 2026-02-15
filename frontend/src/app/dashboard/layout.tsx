@@ -11,6 +11,7 @@ const navKeys = [
   { href: "/dashboard", key: "dashboard" as const, icon: "H" },
   { href: "/dashboard/market", key: "market" as const, icon: "M" },
   { href: "/dashboard/strategies", key: "strategies" as const, icon: "S" },
+  { href: "/dashboard/recipes", key: "recipes" as const, icon: "F" },
   { href: "/dashboard/backtests", key: "backtests" as const, icon: "B" },
   { href: "/dashboard/trading", key: "trading" as const, icon: "T" },
   { href: "/dashboard/paper", key: "paper" as const, icon: "R" },

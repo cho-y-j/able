@@ -73,6 +73,10 @@ class TradingState(TypedDict):
     execution_config: Optional[dict]  # {"strategy": "auto"|"twap"|"vwap"|"direct"}
     slippage_report: list[dict]
 
+    # Recipe system
+    active_recipes: list[dict]  # Active TradingRecipe configs
+    recipe_signals: dict  # Recipe evaluation results by recipe_id
+
     # Agent Memory
     memory_context: str
 

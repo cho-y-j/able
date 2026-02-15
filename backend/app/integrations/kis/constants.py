@@ -33,3 +33,14 @@ TR_ID_BALANCE_PAPER = "VTTC8434R"
 TR_ID_PRICE = "FHKST01010100"
 TR_ID_DAILY_PRICE = "FHKST01010400"
 TR_ID_MINUTE_PRICE = "FHKST03010200"
+
+# Condition search (psearch)
+CONDITION_LIST_PATH = "/uapi/domestic-stock/v1/quotations/psearch-title"
+CONDITION_RESULT_PATH = "/uapi/domestic-stock/v1/quotations/psearch-result"
+TR_ID_CONDITION_LIST = "HHKST03900300"
+TR_ID_CONDITION_RESULT = "HHKST03900400"
+
+# WebSocket data types
+WS_REALTIME_EXEC = "H0STCNT0"    # Real-time execution (체결)
+WS_REALTIME_ORDERBOOK = "H0STASP0"  # Real-time orderbook (호가)
+WS_REALTIME_NOTIFY = "H0STCNI0"    # Real-time notification

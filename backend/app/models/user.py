@@ -15,3 +15,4 @@ class User(Base, UUIDMixin, TimestampMixin):
 
     api_credentials = relationship("ApiCredential", back_populates="user", cascade="all, delete-orphan")
     strategies = relationship("Strategy", back_populates="user", cascade="all, delete-orphan")
+    recipes = relationship("TradingRecipe", back_populates="user", cascade="all, delete-orphan")
