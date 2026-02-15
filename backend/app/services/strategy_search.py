@@ -229,24 +229,49 @@ async def run_search(
                 eq_curve = _sanitize(bt.equity_curve) if bt else None
                 trade_log = _sanitize(bt.trade_log) if bt else None
 
-                # Save Strategy
-                strategy = Strategy(
-                    user_id=user_id,
-                    name=f"{strat['strategy_type']}_{stock_code}",
-                    stock_code=stock_code,
-                    stock_name=stock_name,
-                    strategy_type=strat["strategy_type"],
-                    indicators=[{"name": strat["strategy_type"]}],
-                    parameters=params_clean,
-                    entry_rules={"signal": strat["strategy_type"]},
-                    exit_rules={"signal": strat["strategy_type"]},
-                    risk_params={"stop_loss_pct": 3.0, "take_profit_pct": 6.0},
-                    composite_score=float(composite["total_score"]),
-                    validation_results=vr_clean,
-                    status="validated",
+                # Save Strategy (upsert: update if same user+type+stock exists)
+                existing_result = await db.execute(
+                    select(Strategy).where(
+                        Strategy.user_id == user_id,
+                        Strategy.strategy_type == strat["strategy_type"],
+                        Strategy.stock_code == stock_code,
+                    )
                 )
-                db.add(strategy)
-                await db.flush()
+                existing_strategy = existing_result.scalar_one_or_none()
+
+                if existing_strategy:
+                    strategy = existing_strategy
+                    strategy.name = f"{strat['strategy_type']}_{stock_code}"
+                    strategy.stock_name = stock_name
+                    strategy.parameters = params_clean
+                    strategy.composite_score = float(composite["total_score"])
+                    strategy.validation_results = vr_clean
+                    strategy.status = "validated"
+                    strategy.entry_rules = {"signal": strat["strategy_type"]}
+                    strategy.exit_rules = {"signal": strat["strategy_type"]}
+                    strategy.risk_params = {"stop_loss_pct": 3.0, "take_profit_pct": 6.0}
+                    # Delete old backtests for this strategy
+                    for old_bt in list(strategy.backtests):
+                        await db.delete(old_bt)
+                    await db.flush()
+                else:
+                    strategy = Strategy(
+                        user_id=user_id,
+                        name=f"{strat['strategy_type']}_{stock_code}",
+                        stock_code=stock_code,
+                        stock_name=stock_name,
+                        strategy_type=strat["strategy_type"],
+                        indicators=[{"name": strat["strategy_type"]}],
+                        parameters=params_clean,
+                        entry_rules={"signal": strat["strategy_type"]},
+                        exit_rules={"signal": strat["strategy_type"]},
+                        risk_params={"stop_loss_pct": 3.0, "take_profit_pct": 6.0},
+                        composite_score=float(composite["total_score"]),
+                        validation_results=vr_clean,
+                        status="validated",
+                    )
+                    db.add(strategy)
+                    await db.flush()
 
                 # Save Backtest
                 backtest = Backtest(

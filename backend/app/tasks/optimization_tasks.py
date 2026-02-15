@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime, timezone
 
 import pandas as pd
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -298,28 +298,50 @@ def run_strategy_search(self, user_id: str, stock_code: str, date_range_start: s
                     "wfa_score": wfa_result.get("wfa_score", 0),
                 })
 
-                # Save to DB
-                strategy = Strategy(
-                    user_id=uuid.UUID(user_id),
-                    name=f"{strat['strategy_type']}_{stock_code}",
-                    stock_code=stock_code,
-                    strategy_type=strat["strategy_type"],
-                    indicators=[strat["strategy_type"]],
-                    parameters=strat["params"],
-                    entry_rules={"type": strat["strategy_type"]},
-                    exit_rules={"type": "default"},
-                    risk_params={"stop_loss_pct": 3.0, "take_profit_pct": 6.0},
-                    composite_score=composite["total_score"],
-                    validation_results={
-                        "wfa": wfa_result,
-                        "backtest": strat["metrics"],
-                        "mc_score": mc_score,
-                        "oos_score": oos_score,
-                    },
-                    status="validated",
-                )
-                db.add(strategy)
-                db.flush()
+                # Save to DB (upsert: update if same user+type+stock exists)
+                uid = uuid.UUID(user_id)
+                existing_strategy = db.execute(
+                    select(Strategy).where(
+                        Strategy.user_id == uid,
+                        Strategy.strategy_type == strat["strategy_type"],
+                        Strategy.stock_code == stock_code,
+                    )
+                ).scalar_one_or_none()
+
+                vr_data = {
+                    "wfa": wfa_result,
+                    "backtest": strat["metrics"],
+                    "mc_score": mc_score,
+                    "oos_score": oos_score,
+                }
+
+                if existing_strategy:
+                    strategy = existing_strategy
+                    strategy.name = f"{strat['strategy_type']}_{stock_code}"
+                    strategy.parameters = strat["params"]
+                    strategy.composite_score = composite["total_score"]
+                    strategy.validation_results = vr_data
+                    strategy.status = "validated"
+                    for old_bt in list(strategy.backtests):
+                        db.delete(old_bt)
+                    db.flush()
+                else:
+                    strategy = Strategy(
+                        user_id=uid,
+                        name=f"{strat['strategy_type']}_{stock_code}",
+                        stock_code=stock_code,
+                        strategy_type=strat["strategy_type"],
+                        indicators=[strat["strategy_type"]],
+                        parameters=strat["params"],
+                        entry_rules={"type": strat["strategy_type"]},
+                        exit_rules={"type": "default"},
+                        risk_params={"stop_loss_pct": 3.0, "take_profit_pct": 6.0},
+                        composite_score=composite["total_score"],
+                        validation_results=vr_data,
+                        status="validated",
+                    )
+                    db.add(strategy)
+                    db.flush()
 
                 # Save backtest result
                 backtest = Backtest(
