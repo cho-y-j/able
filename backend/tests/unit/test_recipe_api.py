@@ -372,11 +372,16 @@ class TestActivateRecipe:
 
     @pytest.mark.asyncio
     async def test_activate_recipe(self, test_user, mock_db):
-        """Activating a recipe sets is_active=True."""
+        """Activating a recipe with valid credentials sets is_active=True."""
         from app.api.v1.recipes import activate_recipe
 
         recipe = _make_recipe(test_user.id, is_active=False)
-        mock_db.execute = AsyncMock(return_value=MockResult([recipe]))
+        mock_cred = MagicMock()
+        # Two DB calls: recipe lookup, then credential check
+        mock_db.execute = AsyncMock(side_effect=[
+            MockResult([recipe]),
+            MockResult([mock_cred]),
+        ])
 
         result = await activate_recipe(
             recipe_id=str(recipe.id),
@@ -655,3 +660,229 @@ class TestBacktestRecipe:
             )
 
         assert exc_info.value.status_code == 400
+
+
+# ─── Execute Recipe Tests ────────────────────────────────────
+
+
+class TestExecuteRecipe:
+    """Test POST /recipes/{id}/execute (manual trigger)."""
+
+    @pytest.mark.asyncio
+    async def test_execute_recipe_not_found(self, test_user, mock_db):
+        """Executing a non-existent recipe raises 404."""
+        from app.api.v1.recipes import execute_recipe
+        from app.schemas.recipe import RecipeExecutionRequest
+        from fastapi import HTTPException
+
+        mock_db.execute = AsyncMock(return_value=MockResult([]))
+        req = RecipeExecutionRequest()
+
+        with pytest.raises(HTTPException) as exc_info:
+            await execute_recipe(
+                recipe_id=str(uuid.uuid4()),
+                req=req,
+                db=mock_db,
+                user=test_user,
+            )
+
+        assert exc_info.value.status_code == 404
+
+    @pytest.mark.asyncio
+    @patch("app.services.recipe_executor.RecipeExecutor")
+    async def test_execute_recipe_success(self, mock_executor_cls, test_user, mock_db):
+        """Successful execution returns submitted/failed counts."""
+        from app.api.v1.recipes import execute_recipe
+        from app.schemas.recipe import RecipeExecutionRequest
+
+        recipe = _make_recipe(test_user.id)
+        order_id = str(uuid.uuid4())
+
+        # Mock executor results
+        mock_executor = MagicMock()
+        mock_executor.execute = AsyncMock(return_value=[
+            {"stock_code": "005930", "status": "submitted", "order_id": order_id},
+        ])
+        mock_executor_cls.return_value = mock_executor
+
+        # Mock order lookup
+        mock_order = MagicMock()
+        mock_order.id = uuid.UUID(order_id)
+        mock_order.stock_code = "005930"
+        mock_order.side = "buy"
+        mock_order.order_type = "market"
+        mock_order.quantity = 20
+        mock_order.avg_fill_price = None
+        mock_order.kis_order_id = "KIS001"
+        mock_order.status = "submitted"
+        mock_order.execution_strategy = "direct"
+        mock_order.slippage_bps = None
+        mock_order.error_message = None
+        mock_order.created_at = datetime.now(timezone.utc)
+
+        # DB returns recipe first, then order
+        mock_db.execute = AsyncMock(side_effect=[
+            MockResult([recipe]),  # recipe lookup
+            MockResult([mock_order]),  # order lookup
+        ])
+
+        req = RecipeExecutionRequest()
+        result = await execute_recipe(
+            recipe_id=str(recipe.id),
+            req=req,
+            db=mock_db,
+            user=test_user,
+        )
+
+        assert result.total_submitted == 1
+        assert result.total_failed == 0
+        assert len(result.orders) == 1
+        assert result.orders[0].stock_code == "005930"
+
+    @pytest.mark.asyncio
+    @patch("app.services.recipe_executor.RecipeExecutor")
+    async def test_execute_recipe_value_error_returns_400(self, mock_executor_cls, test_user, mock_db):
+        """When RecipeExecutor raises ValueError, returns 400."""
+        from app.api.v1.recipes import execute_recipe
+        from app.schemas.recipe import RecipeExecutionRequest
+        from fastapi import HTTPException
+
+        recipe = _make_recipe(test_user.id)
+        mock_db.execute = AsyncMock(return_value=MockResult([recipe]))
+
+        mock_executor = MagicMock()
+        mock_executor.execute = AsyncMock(side_effect=ValueError("KIS credentials not found"))
+        mock_executor_cls.return_value = mock_executor
+
+        req = RecipeExecutionRequest()
+
+        with pytest.raises(HTTPException) as exc_info:
+            await execute_recipe(
+                recipe_id=str(recipe.id),
+                req=req,
+                db=mock_db,
+                user=test_user,
+            )
+
+        assert exc_info.value.status_code == 400
+        assert "KIS credentials" in exc_info.value.detail
+
+
+# ─── Order History Tests ─────────────────────────────────────
+
+
+class TestListRecipeOrders:
+    """Test GET /recipes/{id}/orders."""
+
+    @pytest.mark.asyncio
+    async def test_orders_recipe_not_found(self, test_user, mock_db):
+        """Listing orders for non-existent recipe raises 404."""
+        from app.api.v1.recipes import list_recipe_orders
+        from fastapi import HTTPException
+
+        mock_db.execute = AsyncMock(return_value=MockResult([]))
+
+        with pytest.raises(HTTPException) as exc_info:
+            await list_recipe_orders(
+                recipe_id=str(uuid.uuid4()),
+                limit=50,
+                offset=0,
+                db=mock_db,
+                user=test_user,
+            )
+
+        assert exc_info.value.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_orders_returns_list(self, test_user, mock_db):
+        """Returns orders list for a valid recipe."""
+        from app.api.v1.recipes import list_recipe_orders
+
+        recipe_id = uuid.uuid4()
+
+        mock_order = MagicMock()
+        mock_order.id = uuid.uuid4()
+        mock_order.stock_code = "005930"
+        mock_order.side = "buy"
+        mock_order.order_type = "market"
+        mock_order.quantity = 10
+        mock_order.avg_fill_price = None
+        mock_order.kis_order_id = "K001"
+        mock_order.status = "submitted"
+        mock_order.execution_strategy = "direct"
+        mock_order.slippage_bps = None
+        mock_order.error_message = None
+        mock_order.created_at = datetime.now(timezone.utc)
+
+        # First call: recipe ownership check; second call: orders query
+        mock_db.execute = AsyncMock(side_effect=[
+            MockResult([recipe_id]),  # recipe ownership check returns recipe ID
+            MockResult([mock_order]),  # orders
+        ])
+
+        result = await list_recipe_orders(
+            recipe_id=str(recipe_id),
+            limit=50,
+            offset=0,
+            db=mock_db,
+            user=test_user,
+        )
+
+        assert len(result) == 1
+        assert result[0].stock_code == "005930"
+        assert result[0].status == "submitted"
+
+
+# ─── Activate with Credential Validation Tests ──────────────
+
+
+class TestActivateWithCredentials:
+    """Test POST /recipes/{id}/activate credential validation."""
+
+    @pytest.mark.asyncio
+    async def test_activate_without_credentials_returns_400(self, test_user):
+        """Activating without KIS credentials raises 400."""
+        from app.api.v1.recipes import activate_recipe
+        from fastapi import HTTPException
+
+        recipe = _make_recipe(test_user.id, is_active=False)
+
+        # First call: recipe found; second call: no credentials
+        db = make_mock_db()
+        db.execute = AsyncMock(side_effect=[
+            MockResult([recipe]),   # recipe lookup
+            MockResult([]),          # credential lookup (empty)
+        ])
+
+        with pytest.raises(HTTPException) as exc_info:
+            await activate_recipe(
+                recipe_id=str(recipe.id),
+                db=db,
+                user=test_user,
+            )
+
+        assert exc_info.value.status_code == 400
+        assert "KIS credentials" in exc_info.value.detail
+
+    @pytest.mark.asyncio
+    async def test_activate_with_credentials_succeeds(self, test_user):
+        """Activating with valid KIS credentials sets is_active=True."""
+        from app.api.v1.recipes import activate_recipe
+
+        recipe = _make_recipe(test_user.id, is_active=False)
+        mock_cred = MagicMock()
+
+        db = make_mock_db()
+        db.execute = AsyncMock(side_effect=[
+            MockResult([recipe]),      # recipe lookup
+            MockResult([mock_cred]),   # credential found
+        ])
+
+        result = await activate_recipe(
+            recipe_id=str(recipe.id),
+            db=db,
+            user=test_user,
+        )
+
+        assert recipe.is_active is True
+        assert result.is_active is True

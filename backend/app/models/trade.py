@@ -17,6 +17,9 @@ class Trade(Base, UUIDMixin, TimestampMixin):
     strategy_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("strategies.id")
     )
+    recipe_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("trading_recipes.id"), nullable=True
+    )
     stock_code: Mapped[str] = mapped_column(String(20), nullable=False)
     side: Mapped[str] = mapped_column(String(4), nullable=False)
     entry_price: Mapped[Decimal] = mapped_column(Numeric(15, 2), nullable=False)

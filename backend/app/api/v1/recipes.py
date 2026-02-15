@@ -1,14 +1,17 @@
 import uuid
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.db.session import get_db
 from app.models.user import User
 from app.models.trading_recipe import TradingRecipe
+from app.models.order import Order
+from app.models.api_credential import ApiCredential
 from app.schemas.recipe import (
     RecipeCreate, RecipeUpdate, RecipeResponse,
     RecipeBacktestRequest, RecipeBacktestResponse,
+    RecipeExecutionRequest, RecipeExecutionResponse, RecipeOrderResponse,
 )
 from app.api.v1.deps import get_current_user
 
@@ -228,6 +231,20 @@ async def activate_recipe(
     if not recipe:
         raise HTTPException(status_code=404, detail="Recipe not found")
 
+    # Validate KIS credentials exist
+    cred_result = await db.execute(
+        select(ApiCredential).where(
+            ApiCredential.user_id == user.id,
+            ApiCredential.service_type == "kis",
+            ApiCredential.is_active == True,  # noqa: E712
+        )
+    )
+    if not cred_result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=400,
+            detail="KIS credentials required to activate auto-trading",
+        )
+
     recipe.is_active = True
     await db.flush()
     await db.refresh(recipe)
@@ -283,3 +300,116 @@ async def clone_recipe(
     await db.flush()
     await db.refresh(clone)
     return _recipe_to_response(clone)
+
+
+@router.post("/{recipe_id}/execute", response_model=RecipeExecutionResponse)
+async def execute_recipe(
+    recipe_id: str,
+    req: RecipeExecutionRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Manually trigger recipe execution for signal evaluation and order placement."""
+    result = await db.execute(
+        select(TradingRecipe).where(
+            TradingRecipe.id == uuid.UUID(recipe_id),
+            TradingRecipe.user_id == user.id,
+        )
+    )
+    recipe = result.scalar_one_or_none()
+    if not recipe:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+
+    from app.services.recipe_executor import RecipeExecutor
+
+    executor = RecipeExecutor()
+    try:
+        order_results = await executor.execute(
+            user_id=str(user.id),
+            recipe=recipe,
+            db=db,
+            stock_code=req.stock_code,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    submitted = sum(1 for o in order_results if o.get("status") == "submitted")
+    failed = sum(1 for o in order_results if o.get("status") in ("failed", "error"))
+
+    # Build response with actual order records
+    order_responses = []
+    for o in order_results:
+        oid = o.get("order_id")
+        if oid:
+            order_row = await db.execute(select(Order).where(Order.id == uuid.UUID(oid)))
+            order_obj = order_row.scalar_one_or_none()
+            if order_obj:
+                order_responses.append(RecipeOrderResponse(
+                    id=str(order_obj.id),
+                    stock_code=order_obj.stock_code,
+                    side=order_obj.side,
+                    order_type=order_obj.order_type,
+                    quantity=order_obj.quantity,
+                    avg_fill_price=float(order_obj.avg_fill_price) if order_obj.avg_fill_price else None,
+                    kis_order_id=order_obj.kis_order_id,
+                    status=order_obj.status,
+                    execution_strategy=order_obj.execution_strategy,
+                    slippage_bps=order_obj.slippage_bps,
+                    error_message=order_obj.error_message,
+                    created_at=order_obj.created_at,
+                ))
+
+    return RecipeExecutionResponse(
+        recipe_id=recipe_id,
+        orders=order_responses,
+        total_submitted=submitted,
+        total_failed=failed,
+    )
+
+
+@router.get("/{recipe_id}/orders", response_model=list[RecipeOrderResponse])
+async def list_recipe_orders(
+    recipe_id: str,
+    limit: int = Query(default=50, le=200),
+    offset: int = Query(default=0, ge=0),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """List execution history (orders) for a recipe."""
+    # Verify recipe ownership
+    recipe_result = await db.execute(
+        select(TradingRecipe.id).where(
+            TradingRecipe.id == uuid.UUID(recipe_id),
+            TradingRecipe.user_id == user.id,
+        )
+    )
+    if not recipe_result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Recipe not found")
+
+    stmt = (
+        select(Order)
+        .where(Order.recipe_id == uuid.UUID(recipe_id))
+        .order_by(Order.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    orders = result.scalars().all()
+
+    return [
+        RecipeOrderResponse(
+            id=str(o.id),
+            stock_code=o.stock_code,
+            side=o.side,
+            order_type=o.order_type,
+            quantity=o.quantity,
+            avg_fill_price=float(o.avg_fill_price) if o.avg_fill_price else None,
+            kis_order_id=o.kis_order_id,
+            status=o.status,
+            execution_strategy=o.execution_strategy,
+            slippage_bps=o.slippage_bps,
+            error_message=o.error_message,
+            created_at=o.created_at,
+        )
+        for o in orders
+    ]

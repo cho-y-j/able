@@ -7,6 +7,7 @@ import SignalSelector from "./_components/SignalSelector";
 import ParamTuner from "./_components/ParamTuner";
 import FilterBuilder from "./_components/FilterBuilder";
 import RiskConfig from "./_components/RiskConfig";
+import ExecutionPanel from "./_components/ExecutionPanel";
 import type { SignalEntry, Combinator } from "../types";
 
 const STEPS = [
@@ -14,6 +15,7 @@ const STEPS = [
   { key: "params", label: "파라미터 조정" },
   { key: "filters", label: "필터 + 종목" },
   { key: "risk", label: "리스크 + 백테스트" },
+  { key: "execution", label: "실행 현황" },
 ] as const;
 
 export default function RecipeBuilderPage() {
@@ -36,6 +38,7 @@ export default function RecipeBuilderPage() {
   });
   const [saving, setSaving] = useState(false);
   const [savedId, setSavedId] = useState<string | null>(recipeId);
+  const [isActive, setIsActive] = useState(false);
   const [loading, setLoading] = useState(!!recipeId);
   const [alert, setAlert] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
@@ -64,6 +67,7 @@ export default function RecipeBuilderPage() {
       setStockCodes(data.stock_codes || []);
       setRiskConfig(data.risk_config || { stop_loss: 3, take_profit: 5, position_size: 10 });
       setSavedId(data.id);
+      setIsActive(data.is_active || false);
     } catch {
       setAlert({ type: "error", message: "레시피를 불러오지 못했습니다" });
     } finally {
@@ -243,6 +247,13 @@ export default function RecipeBuilderPage() {
             riskConfig={riskConfig}
             stockCodes={stockCodes}
             onRiskChange={setRiskConfig}
+          />
+        )}
+        {step === 4 && (
+          <ExecutionPanel
+            recipeId={savedId}
+            isActive={isActive}
+            stockCodes={stockCodes}
           />
         )}
       </div>

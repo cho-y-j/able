@@ -78,3 +78,34 @@ class RecipeBacktestResponse(BaseModel):
     metrics: dict
     equity_curve: list[EquityCurvePoint] = []
     trade_log: list[TradeLogEntry] = []
+
+
+# ── Execution schemas ──
+
+
+class RecipeExecutionRequest(BaseModel):
+    stock_code: str | None = None  # Execute for specific stock, or all if None
+
+
+class RecipeOrderResponse(BaseModel):
+    id: str
+    stock_code: str
+    side: str
+    order_type: str
+    quantity: int
+    avg_fill_price: float | None
+    kis_order_id: str | None
+    status: str
+    execution_strategy: str | None
+    slippage_bps: float | None
+    error_message: str | None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class RecipeExecutionResponse(BaseModel):
+    recipe_id: str
+    orders: list[RecipeOrderResponse]
+    total_submitted: int
+    total_failed: int

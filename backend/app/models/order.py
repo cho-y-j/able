@@ -17,6 +17,9 @@ class Order(Base, UUIDMixin, TimestampMixin):
     strategy_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("strategies.id")
     )
+    recipe_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("trading_recipes.id"), nullable=True
+    )
     agent_session_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     stock_code: Mapped[str] = mapped_column(String(20), nullable=False)
     stock_name: Mapped[str | None] = mapped_column(String(100))
