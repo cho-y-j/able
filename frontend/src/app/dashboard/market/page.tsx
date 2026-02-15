@@ -114,14 +114,16 @@ interface DailyReport {
   created_at: string;
 }
 
-type TabKey = "briefing" | "closing" | "search";
+type TabKey = "briefing" | "closing" | "archive" | "search";
 
 interface ReportListItem {
   id: string;
   report_date: string;
+  report_type?: string;
   headline: string;
   market_sentiment: string;
   kospi_direction: string;
+  created_at?: string;
 }
 
 export default function MarketPage() {
@@ -139,6 +141,10 @@ export default function MarketPage() {
   const [closingGenerating, setClosingGenerating] = useState(false);
   const [closingHistory, setClosingHistory] = useState<ReportListItem[]>([]);
   const [closingSelectedDate, setClosingSelectedDate] = useState<string | null>(null);
+
+  // Archive state
+  const [archiveReports, setArchiveReports] = useState<ReportListItem[]>([]);
+  const [archiveLoading, setArchiveLoading] = useState(false);
 
   // Stock search state (existing functionality)
   const [stockCode, setStockCode] = useState("");
@@ -162,6 +168,9 @@ export default function MarketPage() {
     if (activeTab === "closing" && !closingReport && !closingLoading) {
       loadClosingReport();
       loadClosingHistory();
+    }
+    if (activeTab === "archive" && archiveReports.length === 0 && !archiveLoading) {
+      loadArchiveReports();
     }
   }, [activeTab]);
 
@@ -194,6 +203,40 @@ export default function MarketPage() {
       setClosingHistory(res.data || []);
     } catch {
       setClosingHistory([]);
+    }
+  };
+
+  const loadArchiveReports = async () => {
+    setArchiveLoading(true);
+    try {
+      const [morningRes, closingRes] = await Promise.all([
+        api.get("/market/daily-reports?limit=50&report_type=morning"),
+        api.get("/market/daily-reports?limit=50&report_type=closing"),
+      ]);
+      const morning = (morningRes.data || []).map((r: ReportListItem) => ({ ...r, report_type: "morning" }));
+      const closing = (closingRes.data || []).map((r: ReportListItem) => ({ ...r, report_type: "closing" }));
+      const merged = [...morning, ...closing].sort((a, b) => {
+        const dateCompare = b.report_date.localeCompare(a.report_date);
+        if (dateCompare !== 0) return dateCompare;
+        return a.report_type === "closing" ? -1 : 1;
+      });
+      setArchiveReports(merged);
+    } catch {
+      setArchiveReports([]);
+    } finally {
+      setArchiveLoading(false);
+    }
+  };
+
+  const handleArchiveClick = (item: ReportListItem) => {
+    if (item.report_type === "closing") {
+      setClosingSelectedDate(item.report_date);
+      loadClosingReport(item.report_date);
+      setActiveTab("closing");
+    } else {
+      setSelectedDate(item.report_date);
+      loadDailyReport(item.report_date);
+      setActiveTab("briefing");
     }
   };
 
@@ -334,6 +377,7 @@ export default function MarketPage() {
   const tabs: { key: TabKey; label: string; icon: string }[] = [
     { key: "briefing", label: "데일리 브리핑", icon: "📊" },
     { key: "closing", label: "장마감 리포트", icon: "📋" },
+    { key: "archive", label: "리포트 보관함", icon: "📁" },
     { key: "search", label: "종목 검색", icon: "🔍" },
   ];
 
@@ -379,6 +423,13 @@ export default function MarketPage() {
           reportHistory={closingHistory}
           selectedDate={closingSelectedDate}
           onDateSelect={handleClosingDateSelect}
+        />
+      ) : activeTab === "archive" ? (
+        <ReportArchiveTab
+          reports={archiveReports}
+          loading={archiveLoading}
+          onClickReport={handleArchiveClick}
+          onRefresh={loadArchiveReports}
         />
       ) : (
         <StockSearchTab
@@ -1200,6 +1251,158 @@ function ClosingReportTab({
 
       {/* News Section */}
       <NewsSection news={ai.news} />
+    </div>
+  );
+}
+
+/* ─── Report Archive Tab (리포트 보관함) ─────────────────────── */
+
+function ReportArchiveTab({
+  reports,
+  loading,
+  onClickReport,
+  onRefresh,
+}: {
+  reports: ReportListItem[];
+  loading: boolean;
+  onClickReport: (item: ReportListItem) => void;
+  onRefresh: () => void;
+}) {
+  const [filter, setFilter] = useState<"all" | "morning" | "closing">("all");
+
+  const filtered = filter === "all" ? reports : reports.filter((r) => r.report_type === filter);
+
+  // Group by date
+  const grouped: Record<string, ReportListItem[]> = {};
+  for (const r of filtered) {
+    if (!grouped[r.report_date]) grouped[r.report_date] = [];
+    grouped[r.report_date].push(r);
+  }
+  const dates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+
+  if (loading) {
+    return (
+      <div className="space-y-3">
+        {[1, 2, 3, 4, 5].map((i) => (
+          <div key={i} className="bg-gray-900 rounded-lg border border-gray-800 p-4 animate-pulse">
+            <div className="flex items-center gap-4">
+              <div className="h-5 bg-gray-800 rounded w-24" />
+              <div className="h-5 bg-gray-800 rounded w-16" />
+              <div className="flex-1 h-5 bg-gray-800 rounded" />
+              <div className="h-5 bg-gray-800 rounded w-16" />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Header + Filter */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <h3 className="text-lg font-semibold">리포트 보관함</h3>
+          <span className="text-xs text-gray-500">{filtered.length}건</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1 bg-gray-900 rounded-lg p-1">
+            {([
+              { key: "all" as const, label: "전체" },
+              { key: "morning" as const, label: "아침 브리핑" },
+              { key: "closing" as const, label: "장마감" },
+            ]).map((f) => (
+              <button
+                key={f.key}
+                onClick={() => setFilter(f.key)}
+                className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
+                  filter === f.key ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={onRefresh}
+            className="text-xs text-gray-400 hover:text-white px-2 py-1.5 transition-colors"
+          >
+            새로고침
+          </button>
+        </div>
+      </div>
+
+      {/* Report List */}
+      {dates.length === 0 ? (
+        <div className="bg-gray-900 rounded-xl border border-gray-800 p-12 text-center">
+          <div className="text-4xl mb-3">📭</div>
+          <p className="text-gray-400">저장된 리포트가 없습니다.</p>
+          <p className="text-xs text-gray-600 mt-1">데일리 브리핑 또는 장마감 리포트를 생성하면 이곳에 저장됩니다.</p>
+        </div>
+      ) : (
+        <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+          {/* Table Header */}
+          <div className="grid grid-cols-12 gap-2 px-4 py-3 border-b border-gray-800 text-xs text-gray-500 font-medium">
+            <div className="col-span-2">날짜</div>
+            <div className="col-span-2">유형</div>
+            <div className="col-span-5">헤드라인</div>
+            <div className="col-span-2 text-center">시장 심리</div>
+            <div className="col-span-1 text-center">코스피</div>
+          </div>
+
+          {/* Rows */}
+          {dates.map((date) =>
+            grouped[date].map((r, idx) => {
+              const isMorning = r.report_type === "morning";
+              const sentimentColor =
+                r.market_sentiment === "탐욕" ? "text-green-400 bg-green-400/10" :
+                r.market_sentiment === "공포" ? "text-red-400 bg-red-400/10" :
+                "text-yellow-400 bg-yellow-400/10";
+              const dirColor =
+                r.kospi_direction === "상승" ? "text-green-400" :
+                r.kospi_direction === "하락" ? "text-red-400" :
+                "text-yellow-400";
+              const dirIcon =
+                r.kospi_direction === "상승" ? "▲" :
+                r.kospi_direction === "하락" ? "▼" : "━";
+
+              return (
+                <div
+                  key={r.id}
+                  onClick={() => onClickReport(r)}
+                  className={`grid grid-cols-12 gap-2 px-4 py-3 cursor-pointer transition-colors hover:bg-gray-800/50 ${
+                    idx > 0 ? "" : "border-t border-gray-800/50 first:border-t-0"
+                  }`}
+                >
+                  <div className="col-span-2 text-sm text-gray-300 font-mono">
+                    {date}
+                  </div>
+                  <div className="col-span-2">
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${
+                      isMorning
+                        ? "bg-blue-500/20 text-blue-300"
+                        : "bg-orange-500/20 text-orange-300"
+                    }`}>
+                      {isMorning ? "아침 브리핑" : "장마감"}
+                    </span>
+                  </div>
+                  <div className="col-span-5 text-sm text-gray-200 truncate">
+                    {r.headline || "리포트 확인하기"}
+                  </div>
+                  <div className="col-span-2 text-center">
+                    <span className={`text-xs px-2 py-0.5 rounded ${sentimentColor}`}>
+                      {r.market_sentiment || "N/A"}
+                    </span>
+                  </div>
+                  <div className={`col-span-1 text-center text-xs font-medium ${dirColor}`}>
+                    {dirIcon} {r.kospi_direction || ""}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
     </div>
   );
 }

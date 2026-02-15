@@ -564,6 +564,127 @@ describe("MarketPage", () => {
     expect(screen.getByText("삼성전자 HBM 수출 급증")).toBeInTheDocument();
   });
 
+  // ─── Archive Tab ──────────────────────────────────────────
+
+  it("shows archive tab button", async () => {
+    render(<MarketPage />);
+
+    expect(screen.getByText(/리포트 보관함/)).toBeInTheDocument();
+  });
+
+  it("switches to archive tab and shows report list", async () => {
+    const user = userEvent.setup();
+
+    mockedApi.get.mockImplementation((url: string) => {
+      if (url === "/market/daily-report" || url.startsWith("/market/daily-report?")) {
+        return Promise.resolve({ data: SAMPLE_REPORT });
+      }
+      if (url.includes("report_type=morning")) {
+        return Promise.resolve({ data: [
+          { id: "m1", report_date: "2026-02-15", report_type: "morning", headline: "NVDA 급등", market_sentiment: "탐욕", kospi_direction: "상승" },
+          { id: "m2", report_date: "2026-02-14", report_type: "morning", headline: "기술주 반등", market_sentiment: "중립", kospi_direction: "보합" },
+        ] });
+      }
+      if (url.includes("report_type=closing")) {
+        return Promise.resolve({ data: [
+          { id: "c1", report_date: "2026-02-15", report_type: "closing", headline: "반도체 강세 마감", market_sentiment: "탐욕", kospi_direction: "상승" },
+        ] });
+      }
+      if (url.startsWith("/market/daily-reports")) {
+        return Promise.resolve({ data: [
+          { id: "r1", report_date: "2026-02-15", headline: "NVDA 급등", market_sentiment: "탐욕", kospi_direction: "상승" },
+        ] });
+      }
+      return Promise.reject(new Error("Unknown"));
+    });
+
+    render(<MarketPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/리포트 보관함/)).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText(/리포트 보관함/));
+
+    await waitFor(() => {
+      expect(screen.getByText("리포트 보관함")).toBeInTheDocument();
+      expect(screen.getByText("NVDA 급등")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("반도체 강세 마감")).toBeInTheDocument();
+  });
+
+  it("archive tab filter buttons work", async () => {
+    const user = userEvent.setup();
+
+    mockedApi.get.mockImplementation((url: string) => {
+      if (url === "/market/daily-report" || url.startsWith("/market/daily-report?")) {
+        return Promise.resolve({ data: SAMPLE_REPORT });
+      }
+      if (url.includes("report_type=morning")) {
+        return Promise.resolve({ data: [
+          { id: "m1", report_date: "2026-02-15", report_type: "morning", headline: "오전 시황 리포트", market_sentiment: "탐욕", kospi_direction: "상승" },
+        ] });
+      }
+      if (url.includes("report_type=closing")) {
+        return Promise.resolve({ data: [
+          { id: "c1", report_date: "2026-02-15", report_type: "closing", headline: "마감 정리 리포트", market_sentiment: "중립", kospi_direction: "보합" },
+        ] });
+      }
+      if (url.startsWith("/market/daily-reports")) {
+        return Promise.resolve({ data: [] });
+      }
+      return Promise.reject(new Error("Unknown"));
+    });
+
+    render(<MarketPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/리포트 보관함/)).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText(/리포트 보관함/));
+
+    await waitFor(() => {
+      expect(screen.getByText("오전 시황 리포트")).toBeInTheDocument();
+      expect(screen.getByText("마감 정리 리포트")).toBeInTheDocument();
+    });
+
+    // Both should be visible in "전체" filter (default)
+    expect(screen.getByText("2건")).toBeInTheDocument();
+
+    // Click "전체" filter — should show both (already selected, but verifying)
+    await user.click(screen.getByText("전체"));
+    expect(screen.getByText("오전 시황 리포트")).toBeInTheDocument();
+    expect(screen.getByText("마감 정리 리포트")).toBeInTheDocument();
+  });
+
+  it("archive tab shows empty state when no reports", async () => {
+    const user = userEvent.setup();
+
+    mockedApi.get.mockImplementation((url: string) => {
+      if (url === "/market/daily-report" || url.startsWith("/market/daily-report?")) {
+        return Promise.resolve({ data: SAMPLE_REPORT });
+      }
+      if (url.startsWith("/market/daily-reports")) {
+        return Promise.resolve({ data: [] });
+      }
+      return Promise.reject(new Error("Unknown"));
+    });
+
+    render(<MarketPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/리포트 보관함/)).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText(/리포트 보관함/));
+
+    await waitFor(() => {
+      expect(screen.getByText("저장된 리포트가 없습니다.")).toBeInTheDocument();
+    });
+  });
+
   // ─── Report History ────────────────────────────────────────
 
   it("shows past report date buttons", async () => {
