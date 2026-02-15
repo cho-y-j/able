@@ -21,6 +21,7 @@ router = APIRouter()
 @router.get("/compare", response_model=StrategyCompareResponse)
 async def compare_strategies(
     strategy_ids: str = Query(..., description="Comma-separated strategy IDs"),
+    include_curves: bool = Query(False, description="Include equity curve data"),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -71,6 +72,9 @@ async def compare_strategies(
                 "mc_score": bt.mc_score,
                 "oos_score": bt.oos_score,
             }
+            if include_curves and bt.equity_curve:
+                entry["backtest"]["equity_curve"] = bt.equity_curve
+                entry["backtest"]["date_range_start"] = str(bt.date_range_start)
         strategies.append(entry)
 
     ranked = sorted(strategies, key=lambda x: x.get("composite_score") or 0, reverse=True)

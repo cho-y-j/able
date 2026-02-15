@@ -151,6 +151,9 @@ const en = {
     overview: "Overview",
     compare: "Compare Strategies",
     metrics: "Performance Metrics",
+    selectStrategies: "Select strategies to compare",
+    selected: "selected",
+    equityCurveOverlay: "Equity Curve Overlay",
   },
 
   trading: {

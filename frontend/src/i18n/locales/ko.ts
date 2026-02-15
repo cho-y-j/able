@@ -153,6 +153,9 @@ const ko: Translations = {
     overview: "개요",
     compare: "전략 비교",
     metrics: "성과 지표",
+    selectStrategies: "비교할 전략 선택",
+    selected: "선택됨",
+    equityCurveOverlay: "에퀴티 커브 비교",
   },
 
   trading: {
