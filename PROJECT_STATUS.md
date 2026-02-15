@@ -5,8 +5,8 @@
 ## 프로젝트 현황 (2026-02-15)
 
 - **백엔드**: Python 146개 모듈 / FastAPI + SQLAlchemy + Celery
-- **프론트엔드**: TypeScript 41개 모듈 / Next.js 16.1.6 + Tailwind
-- **테스트**: 백엔드 664개 + 프론트엔드 180개 = **844개 테스트 통과**
+- **프론트엔드**: TypeScript 41개 모듈 + 19개 테스트 파일 / Next.js 16.1.6 + Tailwind
+- **테스트**: 백엔드 667개 + 프론트엔드 217개 = **884개 테스트 통과**
 - **빌드**: 18개 라우트 정상
 
 ---
@@ -55,7 +55,7 @@
 |------|--------|-----------|
 | auth | `/auth` | 회원가입, 로그인, JWT 토큰 갱신 |
 | api_keys | `/keys` | KIS/LLM API 자격증명 관리 (AES-256 암호화) |
-| strategies | `/strategies` | 전략 CRUD, 자동매매 활성화/비활성화 |
+| strategies | `/strategies` | 전략 CRUD, 종목별 필터링, 자동매매 활성화/비활성화 |
 | backtests | `/backtests` | 백테스트 실행, 결과 조회 |
 | trading | `/trading` | 주문 실행 (TWAP/VWAP/직접) |
 | agents | `/agents` | AI 에이전트 세션 관리 |
@@ -105,7 +105,17 @@
 - **등급 시스템**: A+ ~ D (종합점수 기반)
 - **중복 방지**: user_id + strategy_type + stock_code unique constraint + upsert
 
-### 3. 자동매매 시스템
+### 3. 전략 페이지 프로 UI
+- **전략 목록**: 종목별 접이식 그룹 + 필터 칩 + GradeBadge + StrategyCard + SearchPanel
+- **전략 상세**: ScoreGauge(SVG) + MetricCard + 6탭 컴포넌트 분리
+  - 성과 지표: 히어로 카드 4개 + ScoreGauge 4개 (종합/WFA/MC/OOS)
+  - 에쿼티 커브: 기간 버튼 + 드로다운 오버레이 + lightweight-charts
+  - 거래 내역: 요약 통계 + 정렬 테이블 + 승패 분포 바
+  - 검증 결과: 전략 신뢰도 판정 + 각 섹션 ScoreGauge
+  - 파라미터 조정: 프리셋(보수적/공격적/원래값) + 전후 비교 + 재백테스트 이력
+  - AI 분석: 3-Layer 분석 대시보드 + 확신도 게이지
+
+### 4. 자동매매 시스템
 ```
 버튼 클릭 → is_auto_trading=True
     ↓
@@ -120,12 +130,12 @@ ExecutionEngine (SmartOrderRouter → TWAP/VWAP/직접)
 KIS API → 한국투자증권 실주문
 ```
 
-### 4. 3-Layer AI 분석
+### 5. 3-Layer AI 분석
 - **Layer 1**: DeepSeek 기술적 분석 (차트 패턴, 지지/저항)
 - **Layer 2**: GPT-4o 뉴스 감성 분석 (실시간 뉴스 크롤링)
 - **Layer 3**: 종합 판단 (매수/매도/관망 + 확신도)
 
-### 5. 주문 실행 엔진
+### 6. 주문 실행 엔진
 - **SmartOrderRouter**: 주문 크기/유동성에 따라 자동 전략 선택
 - **TWAP**: 시간 균등 분할 주문
 - **VWAP**: 거래량 가중 분할 주문
@@ -144,6 +154,71 @@ KIS API → 한국투자증권 실주문
 
 ---
 
+## 테스트 현황
+
+### 백엔드 (667개)
+
+| 테스트 파일 | 범위 |
+|-------------|------|
+| `test_signals.py` | 24개 시그널 생성기 + 복합 시그널 |
+| `test_strategy_search.py` | 검색 서비스 + API + stock_code 필터 |
+| `test_strategy_agent.py` | LangGraph 노드 + 빠른 백테스트 |
+| `test_analysis_api.py` | 3-Layer AI 분석 API |
+| `test_validation_api.py` | WFA/MC/OOS 검증 API |
+| `test_market_intelligence.py` | 데일리 브리핑 + 장마감 리포트 |
+| `test_auth.py`, `test_keys.py` | 인증 + API 키 관리 |
+| 그 외 | 백테스트, 에이전트, 알림, 실행 엔진 등 |
+
+### 프론트엔드 (217개)
+
+| 테스트 파일 | 범위 |
+|-------------|------|
+| `pages/strategies.test.tsx` | 전략 목록 (검색, 필터, 그룹, 자동매매 토글) |
+| `pages/strategy-detail.test.tsx` | 전략 상세 6탭 전체 |
+| `pages/market.test.tsx` | 마켓 인텔리전스 4탭 |
+| `pages/dashboard.test.tsx` | 대시보드 홈 |
+| `pages/settings.test.tsx` | 설정 페이지 |
+| `pages/portfolio.test.tsx` | 포트폴리오 |
+| `pages/agents.test.tsx` | AI 에이전트 |
+| `pages/notifications.test.tsx` | 알림 |
+| `pages/risk.test.tsx` | 리스크 대시보드 |
+| `components/GradeBadge.test.tsx` | 등급 뱃지 (gradeInfo 함수 + 3사이즈 렌더링) |
+| `components/ScoreGauge.test.tsx` | SVG 원형 게이지 (값/등급/색상/null 처리) |
+| `components/ParamAdjustTab.test.tsx` | 파라미터 조정 (프리셋/재백테스트/비교/에러) |
+| `lib/charts.test.ts` | 차트 유틸리티 |
+| `lib/ws.test.ts` | WebSocket 클라이언트 |
+| `store/auth.test.ts` | 인증 스토어 |
+| `store/trading.test.ts` | 트레이딩 스토어 |
+| `i18n.test.ts` | 다국어 (한/영) |
+
+---
+
+## 프론트엔드 컴포넌트 구조
+
+```
+frontend/src/app/dashboard/strategies/
+  page.tsx                          ← 전략 목록 (종목별 그룹 + 필터)
+  _components/
+    GradeBadge.tsx                  ← 등급 뱃지 (sm/md/lg, 공유 컴포넌트)
+    StrategySearchPanel.tsx         ← 검색 폼 + 진행바 + 결과 추출
+    StrategyCard.tsx                ← 전략 카드 (등급 원형 + 메트릭 뱃지)
+    StrategyStockGroup.tsx          ← 종목별 접이식 그룹
+
+frontend/src/app/dashboard/strategies/[id]/
+  page.tsx                          ← 상세 쉘 (헤더 + 탭 라우팅)
+  _components/
+    ScoreGauge.tsx                  ← SVG 원형 게이지 (순수 SVG)
+    MetricCard.tsx                  ← 메트릭 카드 (트렌드 화살표 + 툴팁)
+    OverviewTab.tsx                 ← 히어로 카드 + ScoreGauge 4개
+    EquityCurveTab.tsx              ← 에쿼티 차트 + 기간 버튼
+    TradeLogTab.tsx                 ← 거래 테이블 + 승패 분포
+    ValidationTab.tsx               ← WFA/MC/OOS 검증 결과
+    ParamAdjustTab.tsx              ← 프리셋 + 슬라이더 + 전후 비교
+    AiAnalysisTab.tsx               ← 3-Layer AI 분석 대시보드
+```
+
+---
+
 ## 기술 스택
 
 | 계층 | 기술 |
@@ -155,7 +230,7 @@ KIS API → 한국투자증권 실주문
 | Queue | Celery 5, Redis 7 |
 | 증권 API | 한국투자증권 KIS REST + WebSocket |
 | 인증 | JWT (access + refresh), AES-256 자격증명 암호화 |
-| 테스트 | pytest (664), Jest + React Testing Library (180) |
+| 테스트 | pytest (667), Jest + React Testing Library (217) |
 
 ---
 
@@ -182,8 +257,8 @@ celery -A app.tasks.celery_app worker -Q agents,periodic -l info \
 celery -A app.tasks.celery_app beat -l info
 
 # 테스트
-cd backend && python -m pytest tests/ -x -q     # 664 tests
-cd frontend && npx jest                           # 180 tests
+cd backend && python -m pytest tests/ -x -q     # 667 tests
+cd frontend && npx jest                           # 217 tests
 cd frontend && npx next build                     # 18 routes
 ```
 
@@ -193,6 +268,8 @@ cd frontend && npx next build                     # 18 routes
 
 | 커밋 | 내용 |
 |------|------|
+| `58a6163` | 전략 페이지 컴포넌트 + API 테스트 보강 (884개 달성) |
+| `2461df8` | 프로젝트 현황 문서 작성 |
 | `5d119f2` | 트레이딩 스케줄 설정화 + NXT 프리마켓 08:00 대응 |
 | `280d101` | 전략 중복 버그 수정 (unique constraint + upsert) |
 | `272bbeb` | 리포트 보관함 탭 (게시판 형식 아카이브) |
