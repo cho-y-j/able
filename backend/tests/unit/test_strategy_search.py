@@ -754,3 +754,53 @@ class TestSearchKickoff:
         job_id_1 = resp1.json()["job_id"]
         job_id_2 = resp2.json()["job_id"]
         assert job_id_1 != job_id_2
+
+
+# ─── Strategy List with stock_code Filter Tests ─────────────
+
+
+class TestListStrategiesStockFilter:
+    """Test GET /strategies with optional stock_code query parameter."""
+
+    @pytest.mark.asyncio
+    async def test_list_strategies_with_stock_filter(self, client, test_user):
+        """Passing stock_code filters to only that stock's strategies."""
+        s1 = _make_strategy(test_user.id, name="Samsung RSI", stock_code="005930")
+        s2 = _make_strategy(test_user.id, name="Hynix MACD", stock_code="000660")
+
+        # Mock: filtered query returns only s1
+        client._mock_db.execute = AsyncMock(return_value=MockResult([s1]))
+
+        resp = await client.get("/api/v1/strategies", params={"stock_code": "005930"})
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 1
+        assert data[0]["stock_code"] == "005930"
+
+    @pytest.mark.asyncio
+    async def test_list_strategies_no_filter_returns_all(self, client, test_user):
+        """Without stock_code param, all user strategies are returned."""
+        s1 = _make_strategy(test_user.id, name="Samsung RSI", stock_code="005930")
+        s2 = _make_strategy(test_user.id, name="Hynix MACD", stock_code="000660")
+
+        client._mock_db.execute = AsyncMock(return_value=MockResult([s1, s2]))
+
+        resp = await client.get("/api/v1/strategies")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 2
+        stock_codes = {d["stock_code"] for d in data}
+        assert stock_codes == {"005930", "000660"}
+
+    @pytest.mark.asyncio
+    async def test_list_strategies_filter_empty_result(self, client, test_user):
+        """stock_code filter with no matching strategies returns empty list."""
+        client._mock_db.execute = AsyncMock(return_value=MockResult([]))
+
+        resp = await client.get("/api/v1/strategies", params={"stock_code": "999999"})
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data == []
