@@ -13,7 +13,8 @@ from app.models.base import Base, UUIDMixin, TimestampMixin
 class DailyMarketReport(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "daily_market_reports"
 
-    report_date: Mapped[date] = mapped_column(Date, nullable=False, unique=True, index=True)
+    report_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    report_type: Mapped[str] = mapped_column(String(20), nullable=False, default="morning")  # "morning" | "closing"
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
 
     # Raw market data (all numbers pre-computed)

@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { BarChart3, TrendingUp, List, Shield, Settings, Bot } from "lucide-react";
 import { GradeBadge } from "../_components/GradeBadge";
+import { STRATEGY_TYPE_INFO } from "../_components/StrategyCard";
 import ScoreGauge from "./_components/ScoreGauge";
 import OverviewTab from "./_components/OverviewTab";
 import EquityCurveTab from "./_components/EquityCurveTab";
@@ -117,6 +118,16 @@ export default function StrategyDetailPage() {
               <p className="text-gray-500 text-sm mt-0.5">
                 {data.stock_code} {data.stock_name && `(${data.stock_name})`} | {data.strategy_type} | {data.status}
               </p>
+              {STRATEGY_TYPE_INFO[data.strategy_type] && (
+                <div className="flex items-center gap-2 mt-1">
+                  <span className={`text-xs px-1.5 py-0.5 rounded ${
+                    { "추세추종": "bg-blue-500/20 text-blue-300", "모멘텀": "bg-purple-500/20 text-purple-300", "변동성": "bg-orange-500/20 text-orange-300", "복합": "bg-emerald-500/20 text-emerald-300" }[STRATEGY_TYPE_INFO[data.strategy_type].category] || "bg-gray-700 text-gray-400"
+                  }`}>
+                    {STRATEGY_TYPE_INFO[data.strategy_type].category}
+                  </span>
+                  <span className="text-xs text-gray-400">{STRATEGY_TYPE_INFO[data.strategy_type].description}</span>
+                </div>
+              )}
             </div>
           </div>
           {/* Key metrics badges */}

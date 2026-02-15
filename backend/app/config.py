@@ -29,8 +29,10 @@ class Settings(BaseSettings):
     smtp_from: str = "noreply@able-trading.com"
     smtp_use_tls: bool = True
 
-    # DeepSeek AI (fallback when user hasn't configured LLM key)
+    # AI Model config (admin-configurable, future: admin dashboard)
     deepseek_api_key: str = ""
+    openai_api_key: str = ""
+    daily_report_model: str = "gpt-4o"  # "gpt-4o" | "deepseek-chat" | "claude-sonnet"
 
     # CORS
     cors_origins: list[str] = ["http://localhost:3000"]

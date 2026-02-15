@@ -4,7 +4,7 @@ import { useState, useRef } from "react";
 import api from "@/lib/api";
 import { useI18n } from "@/i18n";
 import { GradeBadge, gradeInfo } from "./GradeBadge";
-import { STRATEGY_TYPE_LABELS } from "./StrategyCard";
+import { STRATEGY_TYPE_LABELS, STRATEGY_TYPE_INFO } from "./StrategyCard";
 
 interface SearchJob {
   job_id: string;
@@ -294,8 +294,26 @@ export function StrategySearchPanel({
                       onClick={() => onNavigate(s.id)}
                     >
                       <td className="py-2 pr-3 text-gray-500">#{i + 1}</td>
-                      <td className="py-2 pr-3 text-gray-300">
-                        {typeName(s.name.split("_")[0])}
+                      <td className="py-2 pr-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-gray-300">{typeName(s.name.split("_")[0])}</span>
+                          {(() => {
+                            const sType = s.name.split("_").slice(0, -1).join("_") || s.name.split("_")[0];
+                            const info = STRATEGY_TYPE_INFO[sType] || STRATEGY_TYPE_INFO[s.name.split("_")[0]];
+                            return info ? (
+                              <span className={`text-xs px-1 py-0.5 rounded ${
+                                { "추세추종": "bg-blue-500/20 text-blue-300", "모멘텀": "bg-purple-500/20 text-purple-300", "변동성": "bg-orange-500/20 text-orange-300", "복합": "bg-emerald-500/20 text-emerald-300" }[info.category] || "bg-gray-700 text-gray-400"
+                              }`}>{info.category}</span>
+                            ) : null;
+                          })()}
+                        </div>
+                        {(() => {
+                          const sType = s.name.split("_").slice(0, -1).join("_") || s.name.split("_")[0];
+                          const info = STRATEGY_TYPE_INFO[sType] || STRATEGY_TYPE_INFO[s.name.split("_")[0]];
+                          return info ? (
+                            <p className="text-xs text-gray-600 mt-0.5 line-clamp-1">{info.description}</p>
+                          ) : null;
+                        })()}
                       </td>
                       <td className="py-2 pr-3 text-center">
                         <span

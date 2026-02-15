@@ -26,21 +26,66 @@ const SAMPLE_REPORT = {
     "WTI 원유": { ticker: "CL=F", close: 78.5, change: 2.1, change_pct: 2.75, volume: 800000 },
     "금": { ticker: "GC=F", close: 2350.0, change: 15.0, change_pct: 0.64, volume: 200000 },
     "미국10Y금리": { ticker: "^TNX", close: 4.35, change: 0.05, change_pct: 1.16, volume: 0 },
+    // US stock data
+    us_stocks: {
+      NVDA: { ticker: "NVDA", name: "NVIDIA", close: 140, change: 5.4, change_pct: 4.01, volume: 50000000 },
+      AMD: { ticker: "AMD", name: "AMD", close: 170, change: 3.4, change_pct: 2.04, volume: 30000000 },
+    },
+    us_sectors: {
+      SOXX: { ticker: "SOXX", name: "Semiconductor", kr_name: "반도체", close: 230, change_pct: 2.5 },
+      XLK: { ticker: "XLK", name: "Technology", kr_name: "기술", close: 200, change_pct: 1.2 },
+      XLE: { ticker: "XLE", name: "Energy", kr_name: "에너지", close: 90, change_pct: -0.5 },
+    },
+    us_rankings: {
+      gainers: [
+        { ticker: "NVDA", name: "NVIDIA", close: 140, change_pct: 4.01, themes: ["AI/반도체"] },
+        { ticker: "AMD", name: "AMD", close: 170, change_pct: 2.04, themes: ["AI/반도체"] },
+      ],
+      losers: [
+        { ticker: "TSLA", name: "Tesla", close: 250, change_pct: -1.96, themes: ["2차전지/배터리"] },
+      ],
+    },
   },
   themes: [
     {
       name: "AI/반도체",
-      relevance_score: 5,
-      signals: ["나스닥 +1.5% 강세"],
+      relevance_score: 8,
+      signals: ["NVIDIA(NVDA) +4.0% 상승"],
+      us_movers: [
+        { ticker: "NVDA", name: "NVIDIA", change_pct: 4.01 },
+        { ticker: "AMD", name: "AMD", change_pct: 2.04 },
+      ],
       leader_stocks: [{ code: "005930", name: "삼성전자" }, { code: "000660", name: "SK하이닉스" }],
       follower_stocks: [{ code: "042700", name: "한미반도체" }],
     },
   ],
   ai_summary: {
-    headline: "나스닥 강세에 반도체 주목",
+    headline: "NVDA 급등에 반도체 랠리",
     market_sentiment: "탐욕",
     kospi_direction: "상승",
-    key_issues: ["나스닥 1.5% 상승", "유가 강세"],
+    us_market_analysis: "NVDA +4.01% 급등으로 AI 반도체 강세",
+    key_issues: ["NVDA +4% 상승", "유가 강세"],
+    watchlist: ["삼성전자(005930) — AI/반도체 — NVDA 수혜"],
+    watchlist_data: [
+      {
+        code: "005930",
+        name: "삼성전자",
+        theme: "AI/반도체",
+        role: "대장주",
+        relevance: 8,
+        us_drivers: ["NVIDIA +4.0%", "AMD +2.0%"],
+        reason: "AI/반도체 테마 — NVIDIA +4.0%, AMD +2.0%",
+      },
+      {
+        code: "000660",
+        name: "SK하이닉스",
+        theme: "AI/반도체",
+        role: "대장주",
+        relevance: 8,
+        us_drivers: ["NVIDIA +4.0%"],
+        reason: "AI/반도체 테마 — NVIDIA +4.0%",
+      },
+    ],
     risks: ["금리 인상 우려"],
     strategy: "반도체 대장주 중심 매수 유효",
   },
@@ -52,10 +97,16 @@ describe("MarketPage", () => {
     jest.clearAllMocks();
     mockedUseRealtimePrice.mockReturnValue({ tick: null, isConnected: false });
 
-    // Default: daily report loads successfully
+    // Default: daily report + history loads successfully
     mockedApi.get.mockImplementation((url: string) => {
-      if (url === "/market/daily-report") {
+      if (url === "/market/daily-report" || url.startsWith("/market/daily-report?")) {
         return Promise.resolve({ data: SAMPLE_REPORT });
+      }
+      if (url.startsWith("/market/daily-reports")) {
+        return Promise.resolve({ data: [
+          { id: "r1", report_date: "2026-02-15", headline: "NVDA 급등에 반도체 랠리", market_sentiment: "탐욕", kospi_direction: "상승" },
+          { id: "r2", report_date: "2026-02-14", headline: "기술주 반등 시작", market_sentiment: "중립", kospi_direction: "보합" },
+        ] });
       }
       return Promise.reject(new Error("Unknown endpoint"));
     });
@@ -66,7 +117,6 @@ describe("MarketPage", () => {
   it("renders page title and tab buttons", async () => {
     render(<MarketPage />);
 
-    // Title uses t.market.title which is "Market Data" in test (English locale)
     expect(screen.getByText("Market Data")).toBeInTheDocument();
     expect(screen.getByText(/데일리 브리핑/)).toBeInTheDocument();
     expect(screen.getByText(/종목 검색/)).toBeInTheDocument();
@@ -76,7 +126,8 @@ describe("MarketPage", () => {
     render(<MarketPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("나스닥 강세에 반도체 주목")).toBeInTheDocument();
+      const headlineEls = screen.getAllByText("NVDA 급등에 반도체 랠리");
+      expect(headlineEls.length).toBeGreaterThanOrEqual(1);
     });
   });
 
@@ -123,7 +174,7 @@ describe("MarketPage", () => {
       expect(screen.getByText("핵심 이슈")).toBeInTheDocument();
     });
 
-    expect(screen.getByText(/나스닥 1.5% 상승/)).toBeInTheDocument();
+    expect(screen.getByText(/NVDA \+4% 상승/)).toBeInTheDocument();
   });
 
   it("shows risk factors", async () => {
@@ -140,27 +191,131 @@ describe("MarketPage", () => {
     render(<MarketPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("AI/반도체")).toBeInTheDocument();
+      const themeEls = screen.getAllByText("AI/반도체");
+      expect(themeEls.length).toBeGreaterThanOrEqual(1);
     });
 
-    expect(screen.getByText("삼성전자")).toBeInTheDocument();
-    expect(screen.getByText("SK하이닉스")).toBeInTheDocument();
+    const samsung = screen.getAllByText("삼성전자");
+    expect(samsung.length).toBeGreaterThanOrEqual(1);
+    const hynix = screen.getAllByText("SK하이닉스");
+    expect(hynix.length).toBeGreaterThanOrEqual(1);
   });
 
   it("shows VIX value in header", async () => {
     render(<MarketPage />);
 
     await waitFor(() => {
-      // VIX appears in both hero header and bonds section
       const vixElements = screen.getAllByText(/VIX/);
       expect(vixElements.length).toBeGreaterThanOrEqual(1);
     });
   });
 
+  // ─── NEW: US Stock Rankings ─────────────────────────────────
+
+  it("shows US stock gainers section", async () => {
+    render(<MarketPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("미국 상승 주도주")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("NVIDIA")).toBeInTheDocument();
+    expect(screen.getByText("NVDA")).toBeInTheDocument();
+  });
+
+  it("shows US stock losers section", async () => {
+    render(<MarketPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("미국 하락 주도주")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Tesla")).toBeInTheDocument();
+  });
+
+  it("shows US sector ETF performance", async () => {
+    render(<MarketPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("미국 섹터 성과")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("반도체")).toBeInTheDocument();
+    expect(screen.getByText("SOXX")).toBeInTheDocument();
+  });
+
+  // ─── NEW: Korean Watchlist ──────────────────────────────────
+
+  it("shows Korean watchlist section", async () => {
+    render(<MarketPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("오늘의 관심종목")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("005930")).toBeInTheDocument();
+    expect(screen.getByText("000660")).toBeInTheDocument();
+  });
+
+  it("shows watchlist items with role badges", async () => {
+    render(<MarketPage />);
+
+    await waitFor(() => {
+      const badges = screen.getAllByText("대장주");
+      expect(badges.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  it("shows US drivers in watchlist", async () => {
+    render(<MarketPage />);
+
+    await waitFor(() => {
+      const driverEls = screen.getAllByText(/NVIDIA \+4\.0%/);
+      expect(driverEls.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  it("shows AI watchlist recommendations", async () => {
+    render(<MarketPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("AI 추천 관심종목")).toBeInTheDocument();
+    });
+  });
+
+  // ─── NEW: US Market Analysis ────────────────────────────────
+
+  it("shows US market analysis section", async () => {
+    render(<MarketPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("미국 시장 분석")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/NVDA \+4\.01%/)).toBeInTheDocument();
+  });
+
+  // ─── NEW: Theme US Movers ───────────────────────────────────
+
+  it("shows US movers in theme cards", async () => {
+    render(<MarketPage />);
+
+    await waitFor(() => {
+      // Theme card and watchlist both show NVIDIA as a US mover
+      const moverEls = screen.getAllByText(/NVIDIA \+4\.0%/);
+      expect(moverEls.length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  // ─── Existing tests ─────────────────────────────────────────
+
   it("shows generate button when no report exists", async () => {
     mockedApi.get.mockImplementation((url: string) => {
-      if (url === "/market/daily-report") {
+      if (url === "/market/daily-report" || url.startsWith("/market/daily-report?")) {
         return Promise.reject({ response: { status: 404 } });
+      }
+      if (url.startsWith("/market/daily-reports")) {
+        return Promise.resolve({ data: [] });
       }
       return Promise.reject(new Error("Unknown"));
     });
@@ -202,8 +357,11 @@ describe("MarketPage", () => {
     const user = userEvent.setup();
 
     mockedApi.get.mockImplementation((url: string) => {
-      if (url === "/market/daily-report") {
+      if (url === "/market/daily-report" || url.startsWith("/market/daily-report?")) {
         return Promise.resolve({ data: SAMPLE_REPORT });
+      }
+      if (url.startsWith("/market/daily-reports")) {
+        return Promise.resolve({ data: [] });
       }
       if (url.startsWith("/market/price/")) {
         return Promise.resolve({
@@ -232,7 +390,6 @@ describe("MarketPage", () => {
     });
     await user.click(screen.getByText(/종목 검색/));
 
-    // English locale: placeholder is "Search stocks (e.g. 005930)", button is "Search"
     const input = screen.getByPlaceholderText(/005930/);
     await user.type(input, "005930");
     await user.click(screen.getByRole("button", { name: "Search" }));
@@ -246,7 +403,8 @@ describe("MarketPage", () => {
     render(<MarketPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("2026-02-15")).toBeInTheDocument();
+      const dateEls = screen.getAllByText("2026-02-15");
+      expect(dateEls.length).toBeGreaterThanOrEqual(1);
     });
   });
 
@@ -271,6 +429,165 @@ describe("MarketPage", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/금리 & 선물/)).toBeInTheDocument();
+    });
+  });
+
+  // ─── Closing Report Tab ────────────────────────────────────
+
+  it("shows closing report tab button", async () => {
+    render(<MarketPage />);
+
+    expect(screen.getByText(/장마감 리포트/)).toBeInTheDocument();
+  });
+
+  it("switches to closing report tab and shows generate button", async () => {
+    const user = userEvent.setup();
+
+    mockedApi.get.mockImplementation((url: string) => {
+      if (url === "/market/daily-report" || (url.startsWith("/market/daily-report?") && !url.includes("report_type=closing"))) {
+        return Promise.resolve({ data: SAMPLE_REPORT });
+      }
+      if (url.startsWith("/market/daily-reports")) {
+        return Promise.resolve({ data: [] });
+      }
+      if (url.includes("report_type=closing")) {
+        return Promise.reject({ response: { status: 404 } });
+      }
+      return Promise.reject(new Error("Unknown"));
+    });
+
+    render(<MarketPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/장마감 리포트/)).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText(/장마감 리포트/));
+
+    await waitFor(() => {
+      expect(screen.getByText("장마감 리포트 생성")).toBeInTheDocument();
+    });
+  });
+
+  it("shows closing report data when available", async () => {
+    const user = userEvent.setup();
+
+    const closingReport = {
+      ...SAMPLE_REPORT,
+      report_type: "closing",
+      market_data: {
+        "코스피": { ticker: "^KS11", close: 2680.5, change: 15.3, change_pct: 0.57, volume: 450000000 },
+        "코스닥": { ticker: "^KQ11", close: 870.2, change: -5.1, change_pct: -0.58, volume: 320000000 },
+        kr_rankings: {
+          gainers: [
+            { code: "005930", name: "삼성전자", theme: "AI/반도체", close: 75000, change: 1500, change_pct: 2.04, volume: 12000000 },
+          ],
+          losers: [
+            { code: "373220", name: "LG에너지솔루션", theme: "2차전지/배터리", close: 350000, change: -8000, change_pct: -2.23, volume: 500000 },
+          ],
+        },
+      },
+      ai_summary: {
+        headline: "반도체 강세 속 배터리 약세",
+        market_sentiment: "중립",
+        key_issues: ["삼성전자 외국인 순매수"],
+        risks: ["환율 불안"],
+        strategy: "반도체 비중 확대",
+      },
+    };
+
+    mockedApi.get.mockImplementation((url: string) => {
+      if (url === "/market/daily-report" || (url.startsWith("/market/daily-report?") && !url.includes("report_type=closing"))) {
+        return Promise.resolve({ data: SAMPLE_REPORT });
+      }
+      if (url.startsWith("/market/daily-reports")) {
+        return Promise.resolve({ data: [] });
+      }
+      if (url.includes("report_type=closing")) {
+        return Promise.resolve({ data: closingReport });
+      }
+      return Promise.reject(new Error("Unknown"));
+    });
+
+    render(<MarketPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/장마감 리포트/)).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText(/장마감 리포트/));
+
+    await waitFor(() => {
+      expect(screen.getByText("반도체 강세 속 배터리 약세")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("오늘의 상승 주도주")).toBeInTheDocument();
+    expect(screen.getByText("오늘의 하락 주도주")).toBeInTheDocument();
+  });
+
+  // ─── News Display ──────────────────────────────────────────
+
+  it("shows news section when news data is present", async () => {
+    const reportWithNews = {
+      ...SAMPLE_REPORT,
+      ai_summary: {
+        ...SAMPLE_REPORT.ai_summary,
+        news: {
+          us_news: [
+            { title: "NVIDIA beats earnings expectations", summary: "Strong AI demand", source: "Reuters", ticker: "NVDA" },
+          ],
+          kr_news: [
+            { title: "삼성전자 HBM 수출 급증", source: "매일경제 증시" },
+          ],
+        },
+      },
+    };
+
+    mockedApi.get.mockImplementation((url: string) => {
+      if (url === "/market/daily-report" || url.startsWith("/market/daily-report?")) {
+        return Promise.resolve({ data: reportWithNews });
+      }
+      if (url.startsWith("/market/daily-reports")) {
+        return Promise.resolve({ data: [] });
+      }
+      return Promise.reject(new Error("Unknown"));
+    });
+
+    render(<MarketPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("미국 시장 뉴스")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("NVIDIA beats earnings expectations")).toBeInTheDocument();
+    expect(screen.getByText("한국 시장 뉴스")).toBeInTheDocument();
+    expect(screen.getByText("삼성전자 HBM 수출 급증")).toBeInTheDocument();
+  });
+
+  // ─── Report History ────────────────────────────────────────
+
+  it("shows past report date buttons", async () => {
+    render(<MarketPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("과거 리포트:")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("2026-02-14")).toBeInTheDocument();
+  });
+
+  it("loads specific date report on click", async () => {
+    const user = userEvent.setup();
+    render(<MarketPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("2026-02-14")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText("2026-02-14"));
+
+    await waitFor(() => {
+      expect(mockedApi.get).toHaveBeenCalledWith("/market/daily-report?report_date=2026-02-14");
     });
   });
 });

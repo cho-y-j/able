@@ -322,6 +322,7 @@ async def get_indices(
 @router.get("/daily-report")
 async def get_daily_report(
     report_date: str = Query(None, description="Date in YYYY-MM-DD format (default: today)"),
+    report_type: str = Query("morning", description="Report type: morning | closing"),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -338,26 +339,33 @@ async def get_daily_report(
             raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.")
 
     result = await db.execute(
-        select(DailyMarketReport).where(DailyMarketReport.report_date == target_date)
+        select(DailyMarketReport).where(
+            DailyMarketReport.report_date == target_date,
+            DailyMarketReport.report_type == report_type,
+        )
     )
     report = result.scalar_one_or_none()
 
     if not report:
-        # Try to find the most recent report
+        # Try to find the most recent report of this type
         result = await db.execute(
             select(DailyMarketReport)
-            .where(DailyMarketReport.status == "completed")
+            .where(
+                DailyMarketReport.status == "completed",
+                DailyMarketReport.report_type == report_type,
+            )
             .order_by(DailyMarketReport.report_date.desc())
             .limit(1)
         )
         report = result.scalar_one_or_none()
 
     if not report:
-        raise HTTPException(status_code=404, detail="아직 생성된 데일리 리포트가 없습니다.")
+        raise HTTPException(status_code=404, detail="아직 생성된 리포트가 없습니다.")
 
     return {
         "id": str(report.id),
         "report_date": str(report.report_date),
+        "report_type": report.report_type,
         "status": report.status,
         "market_data": report.market_data,
         "themes": report.themes,
@@ -369,13 +377,17 @@ async def get_daily_report(
 @router.get("/daily-reports")
 async def list_daily_reports(
     limit: int = Query(7, ge=1, le=30),
+    report_type: str = Query("morning", description="Report type: morning | closing"),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     """List recent daily market intelligence reports."""
     result = await db.execute(
         select(DailyMarketReport)
-        .where(DailyMarketReport.status == "completed")
+        .where(
+            DailyMarketReport.status == "completed",
+            DailyMarketReport.report_type == report_type,
+        )
         .order_by(DailyMarketReport.report_date.desc())
         .limit(limit)
     )
@@ -385,6 +397,7 @@ async def list_daily_reports(
         {
             "id": str(r.id),
             "report_date": str(r.report_date),
+            "report_type": r.report_type,
             "headline": r.ai_summary.get("headline", "") if r.ai_summary else "",
             "market_sentiment": r.ai_summary.get("market_sentiment", "중립") if r.ai_summary else "중립",
             "kospi_direction": r.ai_summary.get("kospi_direction", "보합") if r.ai_summary else "보합",
@@ -396,19 +409,33 @@ async def list_daily_reports(
 
 @router.post("/daily-report/generate")
 async def trigger_daily_report(
+    force: bool = Query(False, description="Force regeneration even if report exists"),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Manually trigger daily report generation (admin/debug).
-
-    Normally runs automatically at 06:30 KST via Celery Beat.
-    """
-    import asyncio
+    """Manually trigger morning report generation."""
     from app.services.market_intelligence import generate_daily_report
 
     try:
-        result = await generate_daily_report()
+        result = await generate_daily_report(force=force)
         return result
     except Exception as e:
         logger.error("Manual daily report generation failed: %s", e)
         raise HTTPException(status_code=500, detail=f"리포트 생성 실패: {str(e)}")
+
+
+@router.post("/closing-report/generate")
+async def trigger_closing_report(
+    force: bool = Query(False, description="Force regeneration even if report exists"),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Manually trigger closing (장마감) report generation."""
+    from app.services.market_intelligence import generate_closing_report
+
+    try:
+        result = await generate_closing_report(force=force)
+        return result
+    except Exception as e:
+        logger.error("Manual closing report generation failed: %s", e)
+        raise HTTPException(status_code=500, detail=f"장마감 리포트 생성 실패: {str(e)}")
