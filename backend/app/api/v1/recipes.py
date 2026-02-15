@@ -1,17 +1,20 @@
 import uuid
+from collections import defaultdict
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from app.db.session import get_db
 from app.models.user import User
 from app.models.trading_recipe import TradingRecipe
 from app.models.order import Order
+from app.models.trade import Trade
 from app.models.api_credential import ApiCredential
 from app.schemas.recipe import (
     RecipeCreate, RecipeUpdate, RecipeResponse,
     RecipeBacktestRequest, RecipeBacktestResponse,
     RecipeExecutionRequest, RecipeExecutionResponse, RecipeOrderResponse,
+    DailyPnlPoint, PerformanceTrade, RecipePerformanceResponse,
 )
 from app.api.v1.deps import get_current_user
 
@@ -431,3 +434,100 @@ async def list_recipe_orders(
         )
         for o in orders
     ]
+
+
+@router.get("/{recipe_id}/performance", response_model=RecipePerformanceResponse)
+async def get_recipe_performance(
+    recipe_id: str,
+    limit: int = Query(default=50, le=200),
+    offset: int = Query(default=0, ge=0),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Performance analytics for a recipe: PnL stats, equity curve, trade history."""
+    # Verify ownership
+    result = await db.execute(
+        select(TradingRecipe).where(
+            TradingRecipe.id == uuid.UUID(recipe_id),
+            TradingRecipe.user_id == user.id,
+        )
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Recipe not found")
+
+    # Fetch all trades for this recipe
+    trade_result = await db.execute(
+        select(Trade)
+        .where(Trade.recipe_id == uuid.UUID(recipe_id))
+        .order_by(Trade.entry_at.desc())
+    )
+    all_trades = trade_result.scalars().all()
+
+    # Compute stats from closed trades
+    closed = [t for t in all_trades if t.exit_at is not None and t.pnl is not None]
+    open_count = len(all_trades) - len(closed)
+    wins = [t for t in closed if float(t.pnl) > 0]
+    losses = [t for t in closed if float(t.pnl) <= 0]
+
+    total_pnl = float(sum(float(t.pnl) for t in closed)) if closed else 0.0
+    win_rate = (len(wins) / len(closed) * 100) if closed else None
+    avg_win = (sum(t.pnl_percent or 0 for t in wins) / len(wins)) if wins else None
+    avg_loss = (sum(t.pnl_percent or 0 for t in losses) / len(losses)) if losses else None
+    gross_wins = sum(float(t.pnl) for t in wins)
+    gross_losses = abs(sum(float(t.pnl) for t in losses))
+    profit_factor = (gross_wins / gross_losses) if gross_losses > 0 else None
+    total_pnl_pct = sum(t.pnl_percent or 0 for t in closed) if closed else None
+
+    # Avg slippage from orders
+    slip_result = await db.execute(
+        select(func.avg(Order.slippage_bps)).where(
+            Order.recipe_id == uuid.UUID(recipe_id),
+            Order.slippage_bps.isnot(None),
+        )
+    )
+    avg_slippage = slip_result.scalar_one_or_none()
+
+    # Build daily equity curve from closed trades
+    daily_pnl: dict[str, float] = defaultdict(float)
+    for t in closed:
+        day = t.exit_at.strftime("%Y-%m-%d")
+        daily_pnl[day] += float(t.pnl)
+
+    cumulative = 0.0
+    equity_curve = []
+    for day in sorted(daily_pnl.keys()):
+        cumulative += daily_pnl[day]
+        equity_curve.append(DailyPnlPoint(date=day, value=round(cumulative, 2)))
+
+    # Paginate trades
+    paginated = all_trades[offset: offset + limit]
+
+    return RecipePerformanceResponse(
+        total_trades=len(all_trades),
+        closed_trades=len(closed),
+        open_trades=open_count,
+        win_rate=round(win_rate, 1) if win_rate is not None else None,
+        total_pnl=round(total_pnl, 2),
+        total_pnl_percent=round(total_pnl_pct, 2) if total_pnl_pct is not None else None,
+        avg_win=round(avg_win, 2) if avg_win is not None else None,
+        avg_loss=round(avg_loss, 2) if avg_loss is not None else None,
+        profit_factor=round(profit_factor, 2) if profit_factor is not None else None,
+        avg_slippage_bps=round(float(avg_slippage), 1) if avg_slippage else None,
+        equity_curve=equity_curve,
+        trades=[
+            PerformanceTrade(
+                id=str(t.id),
+                stock_code=t.stock_code,
+                side=t.side,
+                entry_price=float(t.entry_price),
+                exit_price=float(t.exit_price) if t.exit_price else None,
+                quantity=t.quantity,
+                pnl=float(t.pnl) if t.pnl else None,
+                pnl_percent=t.pnl_percent,
+                entry_at=t.entry_at.isoformat(),
+                exit_at=t.exit_at.isoformat() if t.exit_at else None,
+            )
+            for t in paginated
+        ],
+        trades_total=len(all_trades),
+    )

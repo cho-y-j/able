@@ -8,6 +8,7 @@ import ParamTuner from "./_components/ParamTuner";
 import FilterBuilder from "./_components/FilterBuilder";
 import RiskConfig from "./_components/RiskConfig";
 import ExecutionPanel from "./_components/ExecutionPanel";
+import PerformancePanel from "./_components/PerformancePanel";
 import type { SignalEntry, Combinator } from "../types";
 
 const STEPS = [
@@ -16,6 +17,7 @@ const STEPS = [
   { key: "filters", label: "필터 + 종목" },
   { key: "risk", label: "리스크 + 백테스트" },
   { key: "execution", label: "실행 현황" },
+  { key: "performance", label: "성과" },
 ] as const;
 
 export default function RecipeBuilderPage() {
@@ -255,6 +257,9 @@ export default function RecipeBuilderPage() {
             isActive={isActive}
             stockCodes={stockCodes}
           />
+        )}
+        {step === 5 && (
+          <PerformancePanel recipeId={savedId} />
         )}
       </div>
 

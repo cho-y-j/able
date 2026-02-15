@@ -109,3 +109,40 @@ class RecipeExecutionResponse(BaseModel):
     orders: list[RecipeOrderResponse]
     total_submitted: int
     total_failed: int
+
+
+# ── Performance schemas ──
+
+
+class DailyPnlPoint(BaseModel):
+    date: str
+    value: float  # cumulative PnL
+
+
+class PerformanceTrade(BaseModel):
+    id: str
+    stock_code: str
+    side: str
+    entry_price: float
+    exit_price: float | None
+    quantity: int
+    pnl: float | None
+    pnl_percent: float | None
+    entry_at: str
+    exit_at: str | None
+
+
+class RecipePerformanceResponse(BaseModel):
+    total_trades: int
+    closed_trades: int
+    open_trades: int
+    win_rate: float | None
+    total_pnl: float
+    total_pnl_percent: float | None
+    avg_win: float | None
+    avg_loss: float | None
+    profit_factor: float | None
+    avg_slippage_bps: float | None
+    equity_curve: list[DailyPnlPoint]
+    trades: list[PerformanceTrade]
+    trades_total: int
