@@ -95,6 +95,15 @@ const ko: Translations = {
     step2Desc: "AI가 최적의 매매 전략을 찾아드립니다",
     step3Title: "3. AI 에이전트 시작",
     step3Desc: "자동매매 에이전트 팀을 활성화하세요",
+    portfolioOverview: "포트폴리오 현황",
+    viewAll: "전체 보기",
+    noAllocation: "보유 종목이 없습니다.",
+    activeRecipes: "활성 레시피",
+    recipesTotal: "개 레시피",
+    moreRecipes: "개 더보기",
+    noRecipes: "레시피가 없습니다. 레시피 페이지에서 만들어 보세요.",
+    recentActivity: "최근 활동",
+    noActivity: "최근 에이전트 활동이 없습니다.",
   },
 
   market: {

@@ -93,6 +93,15 @@ const en = {
     step2Desc: "Let AI find optimal trading strategies",
     step3Title: "3. Start AI Agent",
     step3Desc: "Activate the automated trading agent team",
+    portfolioOverview: "Portfolio Overview",
+    viewAll: "View All",
+    noAllocation: "No positions to display.",
+    activeRecipes: "Active Recipes",
+    recipesTotal: "recipes",
+    moreRecipes: "more",
+    noRecipes: "No recipes yet. Create one in the Recipes page.",
+    recentActivity: "Recent Activity",
+    noActivity: "No recent agent activity.",
   },
 
   market: {
