@@ -39,6 +39,7 @@ const en = {
     portfolio: "Portfolio",
     risk: "Risk",
     agents: "AI Agents",
+    analysis: "AI Analysis",
     notifications: "Notifications",
     settings: "Settings",
     logout: "Logout",
@@ -363,6 +364,24 @@ const en = {
     inactive: "(inactive)",
     language: "Language",
     languageDesc: "Select your preferred language",
+  },
+
+  analysis: {
+    title: "AI Analysis",
+    stockAnalysis: "Stock AI Analysis",
+    marketBriefing: "Market Briefing",
+    enterStockCode: "Enter stock code or name (e.g., 005930)",
+    analyze: "Analyze",
+    morning: "Pre-Market",
+    closing: "Market Close",
+    noReport: "No briefing available yet.",
+    headline: "Headline",
+    sentiment: "Market Sentiment",
+    direction: "KOSPI Direction",
+    keyIssues: "Key Issues",
+    watchlist: "Watchlist",
+    risks: "Risk Factors",
+    investStrategy: "Strategy",
   },
 };
 

@@ -41,6 +41,7 @@ const ko: Translations = {
     portfolio: "포트폴리오",
     risk: "리스크",
     agents: "AI 에이전트",
+    analysis: "AI 분석",
     notifications: "알림",
     settings: "설정",
     logout: "로그아웃",
@@ -365,6 +366,24 @@ const ko: Translations = {
     inactive: "(비활성)",
     language: "언어",
     languageDesc: "원하시는 언어를 선택하세요",
+  },
+
+  analysis: {
+    title: "AI 분석",
+    stockAnalysis: "종목 AI 분석",
+    marketBriefing: "시장 브리핑",
+    enterStockCode: "종목코드 또는 이름 입력 (예: 005930, 삼성전자)",
+    analyze: "분석",
+    morning: "프리마켓",
+    closing: "장마감",
+    noReport: "오늘의 브리핑이 아직 없습니다.",
+    headline: "헤드라인",
+    sentiment: "시장 심리",
+    direction: "코스피 방향",
+    keyIssues: "주요 이슈",
+    watchlist: "관심종목",
+    risks: "리스크 요인",
+    investStrategy: "투자 전략",
   },
 };
 
