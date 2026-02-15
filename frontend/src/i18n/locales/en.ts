@@ -399,6 +399,13 @@ const en = {
     exitSignal: "Exit Signal",
     viewDetail: "View Detail",
     livePrice: "Live Price",
+    compare: "Compare Backtests",
+    compareDesc: "Compare backtest results across recipes",
+    selectRecipes: "Select recipes to compare",
+    enterStockCode: "Enter stock code",
+    runCompare: "Run Comparison",
+    ranking: "Ranking",
+    noRecipes: "No recipes available",
   },
 };
 

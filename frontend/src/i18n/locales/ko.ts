@@ -401,6 +401,13 @@ const ko: Translations = {
     exitSignal: "매도 신호",
     viewDetail: "상세 보기",
     livePrice: "현재가",
+    compare: "백테스트 비교",
+    compareDesc: "여러 레시피의 백테스트 성과를 비교하세요",
+    selectRecipes: "비교할 레시피 선택",
+    enterStockCode: "종목코드 입력",
+    runCompare: "비교 실행",
+    ranking: "순위",
+    noRecipes: "레시피가 없습니다",
   },
 };
 

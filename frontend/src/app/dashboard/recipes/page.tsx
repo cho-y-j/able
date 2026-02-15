@@ -115,6 +115,12 @@ export default function RecipesPage() {
             실시간 모니터
           </button>
           <button
+            onClick={() => router.push("/dashboard/recipes/compare")}
+            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors"
+          >
+            백테스트 비교
+          </button>
+          <button
             onClick={() => router.push("/dashboard/recipes/new")}
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
           >
