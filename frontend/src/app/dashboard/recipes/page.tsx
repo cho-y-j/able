@@ -103,13 +103,25 @@ export default function RecipesPage() {
             여러 알고리즘을 조합하여 나만의 자동매매 전략을 만드세요
           </p>
         </div>
-        <button
-          onClick={() => router.push("/dashboard/recipes/new")}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-        >
-          <span className="text-lg">+</span>
-          새 레시피 만들기
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => router.push("/dashboard/recipes/monitor")}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+          >
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-300 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-400" />
+            </span>
+            실시간 모니터
+          </button>
+          <button
+            onClick={() => router.push("/dashboard/recipes/new")}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+          >
+            <span className="text-lg">+</span>
+            새 레시피 만들기
+          </button>
+        </div>
       </div>
 
       {/* Stats */}

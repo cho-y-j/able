@@ -385,6 +385,23 @@ const ko: Translations = {
     risks: "리스크 요인",
     investStrategy: "투자 전략",
   },
+
+  recipes: {
+    monitor: "실시간 모니터",
+    monitorDesc: "활성 레시피의 실시간 상태를 확인하세요",
+    noActiveRecipes: "활성화된 레시피가 없습니다",
+    goToRecipes: "레시피 목록으로",
+    activeRecipes: "활성 레시피",
+    recentOrders: "최근 주문",
+    totalOrders: "총 주문",
+    successOrders: "성공",
+    failedOrders: "실패",
+    signalDetected: "신호 감지",
+    entrySignal: "매수 신호",
+    exitSignal: "매도 신호",
+    viewDetail: "상세 보기",
+    livePrice: "현재가",
+  },
 };
 
 export default ko;

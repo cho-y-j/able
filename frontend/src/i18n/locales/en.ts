@@ -383,6 +383,23 @@ const en = {
     risks: "Risk Factors",
     investStrategy: "Strategy",
   },
+
+  recipes: {
+    monitor: "Live Monitor",
+    monitorDesc: "Monitor active recipes in real-time",
+    noActiveRecipes: "No active recipes",
+    goToRecipes: "Go to Recipes",
+    activeRecipes: "Active Recipes",
+    recentOrders: "Recent Orders",
+    totalOrders: "Total Orders",
+    successOrders: "Success",
+    failedOrders: "Failed",
+    signalDetected: "Signal Detected",
+    entrySignal: "Entry Signal",
+    exitSignal: "Exit Signal",
+    viewDetail: "View Detail",
+    livePrice: "Live Price",
+  },
 };
 
 // Deep string type: replace all string literal types with `string`
