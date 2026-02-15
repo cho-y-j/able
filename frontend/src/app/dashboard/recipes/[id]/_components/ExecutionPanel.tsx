@@ -2,6 +2,11 @@
 
 import { useState, useEffect, useCallback } from "react";
 import api from "@/lib/api";
+import {
+  useTradingWebSocket,
+  type OrderUpdateEvent,
+  type RecipeSignalEvent,
+} from "@/lib/useTradingWebSocket";
 
 interface RecipeOrder {
   id: string;
@@ -37,6 +42,11 @@ export default function ExecutionPanel({
     total_submitted: number;
     total_failed: number;
   } | null>(null);
+  const [signal, setSignal] = useState<{
+    signal_type: string;
+    stock_code: string;
+    recipe_name: string;
+  } | null>(null);
 
   const fetchOrders = useCallback(async () => {
     if (!recipeId) return;
@@ -55,6 +65,36 @@ export default function ExecutionPanel({
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
+
+  // Live WebSocket updates
+  const handleOrderUpdate = useCallback(
+    (data: OrderUpdateEvent) => {
+      if (data.recipe_id === recipeId) {
+        fetchOrders();
+      }
+    },
+    [recipeId, fetchOrders]
+  );
+
+  const handleRecipeSignal = useCallback(
+    (data: RecipeSignalEvent) => {
+      if (data.recipe_id === recipeId) {
+        setSignal({
+          signal_type: data.signal_type,
+          stock_code: data.stock_code,
+          recipe_name: data.recipe_name,
+        });
+        // Auto-dismiss after 10s
+        setTimeout(() => setSignal(null), 10000);
+      }
+    },
+    [recipeId]
+  );
+
+  useTradingWebSocket({
+    onOrderUpdate: handleOrderUpdate,
+    onRecipeSignal: handleRecipeSignal,
+  });
 
   const handleExecute = async () => {
     if (!recipeId) return;
@@ -154,6 +194,22 @@ export default function ExecutionPanel({
             실행 완료: {execResult.total_submitted}건 제출,{" "}
             {execResult.total_failed}건 실패
           </p>
+        </div>
+      )}
+
+      {/* Signal Alert */}
+      {signal && (
+        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 flex items-center justify-between">
+          <p className="text-yellow-400 text-sm">
+            {signal.signal_type === "entry" ? "매수" : "매도"} 신호 감지:{" "}
+            <span className="font-mono">{signal.stock_code}</span>
+          </p>
+          <button
+            onClick={() => setSignal(null)}
+            className="text-yellow-500 hover:text-yellow-300 text-xs"
+          >
+            닫기
+          </button>
         </div>
       )}
 

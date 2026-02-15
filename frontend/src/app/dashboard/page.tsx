@@ -1,16 +1,29 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useAuthStore } from "@/store/auth";
 import { useTradingStore } from "@/store/trading";
+import { useTradingWebSocket, type PriceUpdateEvent } from "@/lib/useTradingWebSocket";
 import api from "@/lib/api";
 import { useI18n } from "@/i18n";
 
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user);
   const fetchUser = useAuthStore((s) => s.fetchUser);
-  const { positions, fetchPositions } = useTradingStore();
+  const { positions, fetchPositions, updatePositionPrice } = useTradingStore();
   const { t } = useI18n();
+  const [isLive, setIsLive] = useState(false);
+
+  const handlePriceUpdate = useCallback(
+    (data: PriceUpdateEvent) => {
+      updatePositionPrice(data.stock_code, data.current_price);
+      setIsLive(true);
+    },
+    [updatePositionPrice]
+  );
+
+  useTradingWebSocket({ onPriceUpdate: handlePriceUpdate });
+
   const [balance, setBalance] = useState<{
     total_balance: number;
     available_cash: number;
@@ -80,7 +93,15 @@ export default function DashboardPage() {
       {/* Positions */}
       <div className="bg-gray-900 rounded-xl border border-gray-800 p-6 mb-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">{t.dashboard.openPositions}</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg font-semibold">{t.dashboard.openPositions}</h3>
+            {isLive && (
+              <span className="inline-flex items-center gap-1 text-xs text-green-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                Live
+              </span>
+            )}
+          </div>
           {positions.length > 0 && (
             <span className={`text-sm font-medium ${totalPnl >= 0 ? "text-green-400" : "text-red-400"}`}>
               {t.dashboard.totalPnl}: ₩{totalPnl.toLocaleString()}

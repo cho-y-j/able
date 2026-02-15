@@ -248,6 +248,15 @@ async def activate_recipe(
     recipe.is_active = True
     await db.flush()
     await db.refresh(recipe)
+
+    # Reload active recipes in realtime manager
+    try:
+        from app.services.realtime_manager import get_realtime_manager
+        mgr = get_realtime_manager()
+        await mgr.reload_active_recipes(db)
+    except Exception:
+        pass
+
     return _recipe_to_response(recipe)
 
 
@@ -270,6 +279,15 @@ async def deactivate_recipe(
     recipe.is_active = False
     await db.flush()
     await db.refresh(recipe)
+
+    # Reload active recipes in realtime manager
+    try:
+        from app.services.realtime_manager import get_realtime_manager
+        mgr = get_realtime_manager()
+        await mgr.reload_active_recipes(db)
+    except Exception:
+        pass
+
     return _recipe_to_response(recipe)
 
 

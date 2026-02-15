@@ -177,6 +177,20 @@ class RecipeExecutor:
         db.add(order)
         await db.flush()
 
+        # Push order_update to user's WebSocket
+        try:
+            from app.api.v1.websocket import manager
+            await manager.send_to_user(str(recipe.user_id), {
+                "type": "order_update",
+                "order_id": str(order.id),
+                "recipe_id": str(recipe.id),
+                "stock_code": stock_code,
+                "side": side,
+                "status": "submitted" if exec_result.success else "failed",
+            })
+        except Exception:
+            pass  # Non-critical — don't break execution flow
+
         logger.info(
             f"Recipe '{recipe.name}' order: {side} {quantity} {stock_code} "
             f"status={'submitted' if exec_result.success else 'failed'}"

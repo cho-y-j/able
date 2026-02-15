@@ -103,8 +103,8 @@ async def agents_websocket(websocket: WebSocket, token: str = Query(...)):
 async def market_websocket(websocket: WebSocket, stock_code: str, token: str = Query(...)):
     """Real-time price stream for a stock.
 
-    If KIS WebSocket keys are available, streams real prices.
-    Otherwise, polls the REST API every 5 seconds.
+    Tries KIS WebSocket for true real-time data.
+    Falls back to REST API polling if KIS WS unavailable.
     """
     user_id = _authenticate_ws(token)
     if not user_id:
@@ -113,12 +113,17 @@ async def market_websocket(websocket: WebSocket, stock_code: str, token: str = Q
 
     await manager.connect(websocket, user_id)
     price_task: asyncio.Task | None = None
+    using_realtime = False
 
     try:
-        # Start background price streaming
-        price_task = asyncio.create_task(
-            _stream_price(websocket, user_id, stock_code)
-        )
+        # Try KIS WebSocket first
+        using_realtime = await _try_realtime_subscribe(user_id, stock_code)
+
+        if not using_realtime:
+            # Fallback to REST polling
+            price_task = asyncio.create_task(
+                _stream_price(websocket, user_id, stock_code)
+            )
 
         while True:
             data = await websocket.receive_text()
@@ -129,12 +134,21 @@ async def market_websocket(websocket: WebSocket, stock_code: str, token: str = Q
                 # Client can switch stocks dynamically
                 new_code = msg.get("stock_code")
                 if new_code and new_code != stock_code:
+                    old_code = stock_code
                     stock_code = new_code
-                    if price_task:
-                        price_task.cancel()
-                    price_task = asyncio.create_task(
-                        _stream_price(websocket, user_id, stock_code)
-                    )
+
+                    if using_realtime:
+                        from app.services.realtime_manager import get_realtime_manager
+                        mgr = get_realtime_manager()
+                        await mgr.unsubscribe(user_id, old_code)
+                        using_realtime = await _try_realtime_subscribe(user_id, stock_code)
+
+                    if not using_realtime:
+                        if price_task:
+                            price_task.cancel()
+                        price_task = asyncio.create_task(
+                            _stream_price(websocket, user_id, stock_code)
+                        )
     except WebSocketDisconnect:
         pass
     except Exception:
@@ -142,7 +156,35 @@ async def market_websocket(websocket: WebSocket, stock_code: str, token: str = Q
     finally:
         if price_task:
             price_task.cancel()
+        if using_realtime:
+            from app.services.realtime_manager import get_realtime_manager
+            mgr = get_realtime_manager()
+            await mgr.unsubscribe(user_id, stock_code)
         manager.disconnect(websocket, user_id)
+
+
+async def _try_realtime_subscribe(user_id: str, stock_code: str) -> bool:
+    """Try to subscribe via KIS WebSocket. Returns True on success."""
+    try:
+        from app.services.realtime_manager import get_realtime_manager
+        from app.db.session import async_session_factory
+        from app.services.kis_service import get_kis_client
+
+        mgr = get_realtime_manager()
+
+        # Get KIS credentials from cached client
+        async with async_session_factory() as db:
+            kis = await get_kis_client(user_id, db)
+
+        return await mgr.subscribe(
+            user_id=user_id,
+            stock_code=stock_code,
+            is_paper=kis.is_paper,
+            app_key=kis.token_manager.app_key,
+            app_secret=kis.token_manager.app_secret,
+        )
+    except Exception:
+        return False
 
 
 async def _stream_price(websocket: WebSocket, user_id: str, stock_code: str):
