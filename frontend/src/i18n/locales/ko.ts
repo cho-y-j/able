@@ -133,6 +133,7 @@ const ko: Translations = {
     profitFactor: "수익률 팩터",
     totalReturn: "총 수익률",
     autoTrading: "자동매매",
+    createRecipe: "레시피 만들기",
   },
 
   backtests: {

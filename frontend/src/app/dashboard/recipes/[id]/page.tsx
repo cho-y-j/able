@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import api from "@/lib/api";
 import SignalSelector from "./_components/SignalSelector";
 import ParamTuner from "./_components/ParamTuner";
@@ -23,7 +23,9 @@ const STEPS = [
 export default function RecipeBuilderPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const recipeId = params.id === "new" ? null : (params.id as string);
+  const fromStrategyId = searchParams.get("from_strategy");
 
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
@@ -47,8 +49,33 @@ export default function RecipeBuilderPage() {
   useEffect(() => {
     if (recipeId) {
       loadRecipe();
+    } else if (fromStrategyId) {
+      loadFromStrategy(fromStrategyId);
     }
-  }, [recipeId]);
+  }, [recipeId, fromStrategyId]);
+
+  const loadFromStrategy = async (strategyId: string) => {
+    try {
+      const { data } = await api.get(`/strategies/${strategyId}/detail`);
+      setName(`${data.name} 레시피`);
+      setSignals([{
+        type: "recommended",
+        strategy_type: data.strategy_type,
+        params: data.parameters || {},
+        weight: 1.0,
+      }]);
+      setStockCodes(data.stock_code ? [data.stock_code] : []);
+      if (data.risk_params) {
+        setRiskConfig({
+          stop_loss: data.risk_params.stop_loss ?? 3,
+          take_profit: data.risk_params.take_profit ?? 5,
+          position_size: data.risk_params.position_size ?? 10,
+        });
+      }
+    } catch {
+      setAlert({ type: "error", message: "전략 정보를 불러오지 못했습니다" });
+    }
+  };
 
   useEffect(() => {
     if (alert) {

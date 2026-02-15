@@ -38,19 +38,9 @@ export default function StrategiesPage() {
     setExpandedGroups(new Set([stockCode])); // auto-expand searched stock
   };
 
-  const toggleAutoTrading = async (
-    e: React.MouseEvent,
-    id: string,
-    isActive: boolean
-  ) => {
+  const createRecipeFromStrategy = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    try {
-      if (isActive) await api.post(`/strategies/${id}/deactivate`);
-      else await api.post(`/strategies/${id}/activate`);
-      fetchStrategies();
-    } catch {
-      alert(t.strategies.toggleFailed);
-    }
+    router.push(`/dashboard/recipes/new?from_strategy=${id}`);
   };
 
   const deleteStrategy = async (e: React.MouseEvent, id: string) => {
@@ -197,7 +187,7 @@ export default function StrategiesPage() {
                     isExpanded={expandedGroups.has(code)}
                     onToggle={() => toggleGroup(code)}
                     onNavigate={navigateToStrategy}
-                    onToggleAutoTrading={toggleAutoTrading}
+                    onCreateRecipe={createRecipeFromStrategy}
                     onDelete={deleteStrategy}
                   />
                 );

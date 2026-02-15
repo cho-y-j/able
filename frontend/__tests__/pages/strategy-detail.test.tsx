@@ -340,30 +340,32 @@ describe("StrategyDetailPage", () => {
     });
   });
 
-  it("renders auto-trading status indicator", async () => {
+  it("renders create recipe button", async () => {
     await act(async () => {
       render(<StrategyDetailPage />);
     });
 
     await waitFor(() => {
-      expect(screen.getByText("비활성")).toBeInTheDocument();
+      expect(screen.getByText("레시피 만들기")).toBeInTheDocument();
     });
   });
 
-  it("renders auto-trading active indicator when enabled", async () => {
-    const activeStrategy = { ...mockStrategyDetail, is_auto_trading: true };
-    mockedApi.get.mockImplementation((url: string) => {
-      if (url.includes("/param-ranges")) return Promise.resolve({ data: mockParamRanges });
-      return Promise.resolve({ data: activeStrategy });
-    });
+  it("navigates to recipe builder when create recipe button is clicked", async () => {
+    const user = userEvent.setup();
 
     await act(async () => {
       render(<StrategyDetailPage />);
     });
 
     await waitFor(() => {
-      expect(screen.getByText("자동매매 활성")).toBeInTheDocument();
+      expect(screen.getByText("레시피 만들기")).toBeInTheDocument();
     });
+
+    await user.click(screen.getByText("레시피 만들기"));
+
+    expect(mockPush).toHaveBeenCalledWith(
+      "/dashboard/recipes/new?from_strategy=strategy-1"
+    );
   });
 
   it("renders back link to strategy list", async () => {

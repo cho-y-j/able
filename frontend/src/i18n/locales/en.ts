@@ -131,6 +131,7 @@ const en = {
     profitFactor: "Profit Factor",
     totalReturn: "Total Return",
     autoTrading: "Auto Trading",
+    createRecipe: "Create Recipe",
   },
 
   backtests: {

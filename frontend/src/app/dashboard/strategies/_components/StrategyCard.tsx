@@ -23,7 +23,7 @@ export interface Strategy {
 export interface StrategyCardProps {
   strategy: Strategy;
   onNavigate: (id: string) => void;
-  onToggleAutoTrading: (e: React.MouseEvent, id: string, isActive: boolean) => void;
+  onCreateRecipe: (e: React.MouseEvent, id: string) => void;
   onDelete: (e: React.MouseEvent, id: string) => void;
 }
 
@@ -169,7 +169,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 export function statusLabel(status: string): string {
   switch (status) {
     case "active":
-      return "자동매매 중";
+      return "활성";
     case "validated":
       return "검증 완료";
     case "draft":
@@ -184,7 +184,7 @@ export function statusLabel(status: string): string {
 export function StrategyCard({
   strategy: s,
   onNavigate,
-  onToggleAutoTrading,
+  onCreateRecipe,
   onDelete,
 }: StrategyCardProps) {
   const vr = s.validation_results;
@@ -277,14 +277,10 @@ export function StrategyCard({
         </span>
 
         <button
-          onClick={(e) => onToggleAutoTrading(e, s.id, s.is_auto_trading)}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-            s.is_auto_trading
-              ? "bg-red-600/20 text-red-400 hover:bg-red-600/30"
-              : "bg-green-600/20 text-green-400 hover:bg-green-600/30"
-          }`}
+          onClick={(e) => onCreateRecipe(e, s.id)}
+          className="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors bg-purple-600/20 text-purple-400 hover:bg-purple-600/30"
         >
-          {s.is_auto_trading ? "매매 중지" : "자동매매 시작"}
+          레시피 만들기
         </button>
 
         <button

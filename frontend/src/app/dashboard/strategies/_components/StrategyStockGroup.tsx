@@ -11,7 +11,7 @@ interface StrategyStockGroupProps {
   isExpanded: boolean;
   onToggle: () => void;
   onNavigate: (id: string) => void;
-  onToggleAutoTrading: (e: React.MouseEvent, id: string, isActive: boolean) => void;
+  onCreateRecipe: (e: React.MouseEvent, id: string) => void;
   onDelete: (e: React.MouseEvent, id: string) => void;
 }
 
@@ -22,7 +22,7 @@ export function StrategyStockGroup({
   isExpanded,
   onToggle,
   onNavigate,
-  onToggleAutoTrading,
+  onCreateRecipe,
   onDelete,
 }: StrategyStockGroupProps) {
   const bestScore = strategies.reduce<number | null>((best, s) => {
@@ -73,7 +73,7 @@ export function StrategyStockGroup({
               key={s.id}
               strategy={s}
               onNavigate={onNavigate}
-              onToggleAutoTrading={onToggleAutoTrading}
+              onCreateRecipe={onCreateRecipe}
               onDelete={onDelete}
             />
           ))}

@@ -176,7 +176,7 @@ describe("StrategiesPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText("자동매매 중")).toBeInTheDocument();
+      expect(screen.getByText("활성")).toBeInTheDocument();
       expect(screen.getByText("검증 완료")).toBeInTheDocument();
       expect(screen.getByText("초안")).toBeInTheDocument();
     });
@@ -241,7 +241,7 @@ describe("StrategiesPage", () => {
     expect(mockPush).toHaveBeenCalledWith("/dashboard/strategies/s1");
   });
 
-  it("toggles auto trading from active to inactive", async () => {
+  it("navigates to recipe builder when create recipe button is clicked", async () => {
     jest.useRealTimers();
     const user = userEvent.setup();
 
@@ -252,40 +252,14 @@ describe("StrategiesPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText("매매 중지")).toBeInTheDocument();
+      expect(screen.getByText("레시피 만들기")).toBeInTheDocument();
     });
 
-    // Strategy s1 has is_auto_trading: true, so button shows "매매 중지"
-    await user.click(screen.getByText("매매 중지"));
+    await user.click(screen.getByText("레시피 만들기"));
 
-    await waitFor(() => {
-      expect(mockedApi.post).toHaveBeenCalledWith(
-        "/strategies/s1/deactivate"
-      );
-    });
-  });
-
-  it("toggles auto trading from inactive to active", async () => {
-    jest.useRealTimers();
-    const user = userEvent.setup();
-
-    mockedApi.get.mockResolvedValue({ data: [mockStrategies[1]] });
-
-    await act(async () => {
-      render(<StrategiesPage />);
-    });
-
-    await waitFor(() => {
-      expect(screen.getByText("자동매매 시작")).toBeInTheDocument();
-    });
-
-    await user.click(screen.getByText("자동매매 시작"));
-
-    await waitFor(() => {
-      expect(mockedApi.post).toHaveBeenCalledWith(
-        "/strategies/s2/activate"
-      );
-    });
+    expect(mockPush).toHaveBeenCalledWith(
+      "/dashboard/recipes/new?from_strategy=s1"
+    );
   });
 
   it("deletes a strategy after confirmation", async () => {
