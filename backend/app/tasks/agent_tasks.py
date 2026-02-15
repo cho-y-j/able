@@ -14,7 +14,22 @@ from app.models.agent_session import AgentSession, AgentAction
 from app.models.api_credential import ApiCredential
 from app.core.encryption import get_vault
 
+from app.services.notification_service import (
+    notify_agent_completed, notify_agent_error,
+)
+
 logger = logging.getLogger(__name__)
+
+
+def _send_notification_sync(coro):
+    """Run an async notification coroutine from sync Celery context."""
+    import asyncio
+    try:
+        loop = asyncio.new_event_loop()
+        loop.run_until_complete(coro)
+        loop.close()
+    except Exception as exc:
+        logger.warning(f"Notification dispatch failed: {exc}")
 
 
 def _get_sync_db():
@@ -166,6 +181,11 @@ def run_agent_session(self, user_id: str, session_id: str, session_type: str = "
 
         db.commit()
 
+        # Notify user of session completion
+        _send_notification_sync(
+            notify_agent_completed(user_id, session_id, final_state.get("iteration_count", 0))
+        )
+
         return {
             "status": "complete",
             "session_id": session_id,
@@ -185,6 +205,9 @@ def run_agent_session(self, user_id: str, session_id: str, session_type: str = "
             db.commit()
         except Exception:
             db.rollback()
+        _send_notification_sync(
+            notify_agent_error(user_id, session_id, "Session timed out")
+        )
         return {"status": "timeout", "message": "Session timed out"}
 
     except Exception as e:
@@ -197,6 +220,11 @@ def run_agent_session(self, user_id: str, session_id: str, session_type: str = "
             db.commit()
         except Exception:
             db.rollback()
+
+        # Notify user of agent error (sends email via send_email=True)
+        _send_notification_sync(
+            notify_agent_error(user_id, session_id, str(e))
+        )
 
         # Retry on transient errors (up to max_retries)
         if self.request.retries < self.max_retries:

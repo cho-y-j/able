@@ -86,6 +86,21 @@ async def human_approval_node(state: TradingState) -> dict:
         for t in trades_needing_approval
     )
 
+    # Send notification to user (email + in-app + WebSocket)
+    total_value = sum(t["position_value"] for t in trades_needing_approval)
+    user_id = state.get("user_id")
+    session_id = state.get("session_id")
+    if user_id and session_id:
+        try:
+            from app.services.notification_service import notify_pending_approval
+            await notify_pending_approval(
+                user_id, session_id,
+                trade_count=len(trades_needing_approval),
+                total_value=total_value,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to send pending approval notification: {e}")
+
     return {
         "messages": [AIMessage(
             content=f"[HITL] Approval required for {len(trades_needing_approval)} trade(s): "

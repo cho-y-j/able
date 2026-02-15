@@ -24,6 +24,32 @@ from app.integrations.kis.constants import (
 
 logger = logging.getLogger(__name__)
 
+# P&L alert thresholds (percentage) and dedup tracking
+PNL_ALERT_THRESHOLDS = [5, 10, 20]
+_last_pnl_alert: dict[tuple[str, str], int] = {}  # (user_id, stock_code) → last alerted threshold
+
+
+def _get_pnl_threshold(pnl_pct: float) -> int | None:
+    """Return the highest threshold crossed by pnl_pct, or None."""
+    abs_pct = abs(pnl_pct)
+    crossed = None
+    for t in PNL_ALERT_THRESHOLDS:
+        if abs_pct >= t:
+            crossed = t
+    return crossed
+
+
+def _send_pnl_notification(user_id_str: str, stock_code: str, pnl: float, pnl_pct: float):
+    """Send P&L alert notification (sync wrapper)."""
+    import asyncio
+    from app.services.notification_service import notify_pnl_alert
+    try:
+        loop = asyncio.new_event_loop()
+        loop.run_until_complete(notify_pnl_alert(user_id_str, stock_code, pnl, pnl_pct))
+        loop.close()
+    except Exception as exc:
+        logger.warning(f"P&L notification failed for {stock_code}: {exc}")
+
 
 def _get_sync_db():
     settings = get_settings()
@@ -125,6 +151,22 @@ def update_position_prices():
                                 Decimal(str(price)) - pos.avg_cost_price
                             ) * pos.quantity
                             updated_count += 1
+
+                            # Check P&L alert thresholds
+                            if pos.avg_cost_price and pos.avg_cost_price > 0:
+                                pnl_pct = float(
+                                    (Decimal(str(price)) - pos.avg_cost_price)
+                                    / pos.avg_cost_price * 100
+                                )
+                                threshold = _get_pnl_threshold(pnl_pct)
+                                uid_str = str(user_id)
+                                key = (uid_str, stock_code)
+                                if threshold and _last_pnl_alert.get(key) != threshold:
+                                    _last_pnl_alert[key] = threshold
+                                    _send_pnl_notification(
+                                        uid_str, stock_code,
+                                        float(pos.unrealized_pnl), pnl_pct,
+                                    )
 
                 except Exception as e:
                     logger.warning(f"Price fetch failed for {stock_code}: {e}")

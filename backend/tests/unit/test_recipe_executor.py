@@ -255,8 +255,8 @@ class TestRecipeExecutorSignals:
         assert results[0]["kis_order_id"] == "KIS001"
         # Position size: 10% of 10M = 1M; 1M / 50000 = 20 shares
         assert results[0]["quantity"] == 20
-        # Order persisted to DB
-        db.add.assert_called_once()
+        # Order persisted to DB (+ notification may add another call)
+        assert db.add.call_count >= 1
         db.flush.assert_awaited()
 
 
@@ -577,8 +577,8 @@ class TestRecipeExecutorFailures:
         )
 
         assert results[0]["status"] == "failed"
-        # Order is still persisted to DB even on failure
-        db.add.assert_called_once()
+        # Order is still persisted to DB even on failure (+ notification)
+        assert db.add.call_count >= 1
 
     @pytest.mark.asyncio
     @patch(_PATCH_FETCH)

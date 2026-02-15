@@ -191,6 +191,25 @@ class RecipeExecutor:
         except Exception:
             pass  # Non-critical — don't break execution flow
 
+        # Send notification (in-app + WebSocket + optional email)
+        try:
+            from app.services.notification_service import (
+                notify_order_filled, notify_order_rejected,
+            )
+            user_id_str = str(recipe.user_id)
+            if exec_result.success:
+                await notify_order_filled(
+                    user_id_str, stock_code, side, quantity,
+                    exec_result.fill_price or current_price, db,
+                )
+            else:
+                await notify_order_rejected(
+                    user_id_str, stock_code, side,
+                    exec_result.error_message or "Execution failed", db,
+                )
+        except Exception:
+            pass  # Non-critical
+
         logger.info(
             f"Recipe '{recipe.name}' order: {side} {quantity} {stock_code} "
             f"status={'submitted' if exec_result.success else 'failed'}"
