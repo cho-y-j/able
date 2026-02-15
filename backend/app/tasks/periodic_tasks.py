@@ -164,6 +164,142 @@ def generate_daily_report():
         return {"status": "error", "message": str(e)}
 
 
+def _send_signal_notification(db, recipe, stock_code: str, signal_type: str) -> int:
+    """Save a recipe signal notification to sync DB and push via WebSocket.
+
+    Returns 1 on success, 0 on failure.
+    """
+    import asyncio
+    from app.models.notification import Notification
+    from app.services.notification_service import (
+        NotificationService, NotificationPayload, NotificationCategory,
+    )
+
+    action = "진입" if signal_type == "entry" else "청산"
+    title = f"[{recipe.name}] {stock_code} {action} 시그널"
+    message = f"레시피 '{recipe.name}'에서 {stock_code}의 {action} 시그널이 감지되었습니다."
+    data = {
+        "recipe_id": str(recipe.id),
+        "recipe_name": recipe.name,
+        "stock_code": stock_code,
+        "signal_type": signal_type,
+    }
+    link = f"/dashboard/recipes/{recipe.id}"
+
+    try:
+        notif = Notification(
+            user_id=recipe.user_id,
+            category="alert",
+            title=title,
+            message=message,
+            data=data,
+            link=link,
+        )
+        db.add(notif)
+        db.commit()
+    except Exception as e:
+        logger.warning(f"Failed to save signal notification: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return 0
+
+    # WebSocket push (best-effort)
+    try:
+        payload = NotificationPayload(
+            user_id=str(recipe.user_id),
+            category=NotificationCategory.ALERT,
+            title=title,
+            message=message,
+            data=data,
+            link=link,
+        )
+        asyncio.run(NotificationService._send_websocket(payload))
+    except Exception:
+        pass  # WebSocket is best-effort
+
+    # Email for entry signals only (sync)
+    if signal_type == "entry":
+        try:
+            payload = NotificationPayload(
+                user_id=str(recipe.user_id),
+                category=NotificationCategory.ALERT,
+                title=title,
+                message=message,
+                data=data,
+                link=link,
+                send_email=True,
+            )
+            NotificationService._send_email(payload)
+        except Exception:
+            pass  # Email is best-effort
+
+    return 1
+
+
+def _send_condition_notification(db, user_id, condition_id: str, condition_name: str, results: list) -> int:
+    """Save a condition match notification to sync DB and push via WebSocket.
+
+    Returns 1 on success, 0 on failure.
+    """
+    import asyncio
+    from app.models.notification import Notification
+    from app.services.notification_service import (
+        NotificationService, NotificationPayload, NotificationCategory,
+    )
+
+    count = len(results)
+    if count == 0:
+        return 0
+
+    codes = [r.get("stock_code", "") for r in results[:10] if isinstance(r, dict)]
+    title = f"조건검색 '{condition_name}': {count}개 종목 매칭"
+    message = f"조건검색 '{condition_name}'에서 {count}개 종목이 매칭되었습니다."
+    data = {
+        "condition_id": condition_id,
+        "condition_name": condition_name,
+        "match_count": count,
+        "stock_codes": codes,
+    }
+    link = "/dashboard/recipes"
+
+    try:
+        notif = Notification(
+            user_id=user_id,
+            category="alert",
+            title=title,
+            message=message,
+            data=data,
+            link=link,
+        )
+        db.add(notif)
+        db.commit()
+    except Exception as e:
+        logger.warning(f"Failed to save condition notification: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return 0
+
+    # WebSocket push (best-effort)
+    try:
+        payload = NotificationPayload(
+            user_id=str(user_id),
+            category=NotificationCategory.ALERT,
+            title=title,
+            message=message,
+            data=data,
+            link=link,
+        )
+        asyncio.run(NotificationService._send_websocket(payload))
+    except Exception:
+        pass
+
+    return 1
+
+
 @celery_app.task(name="tasks.monitor_active_recipes", soft_time_limit=300, time_limit=360)
 def monitor_active_recipes():
     """Evaluate active recipe conditions via REST polling.
@@ -197,6 +333,7 @@ def monitor_active_recipes():
 
         evaluated = 0
         signals_found = 0
+        notifications_sent = 0
 
         for recipe in recipes:
             stock_codes = recipe.stock_codes or []
@@ -230,12 +367,14 @@ def monitor_active_recipes():
 
                     if should_enter or should_exit:
                         signals_found += 1
+                        signal_type = "entry" if should_enter else "exit"
                         signal_data = {
                             "recipe_id": str(recipe.id),
                             "recipe_name": recipe.name,
                             "stock_code": stock_code,
                             "should_enter": should_enter,
                             "should_exit": should_exit,
+                            "signal_type": signal_type,
                             "timestamp": dt.now().isoformat(),
                         }
                         r.set(
@@ -248,12 +387,17 @@ def monitor_active_recipes():
                             f"enter={should_enter} exit={should_exit}"
                         )
 
+                        # Send notification
+                        notifications_sent += _send_signal_notification(
+                            db, recipe, stock_code, signal_type,
+                        )
+
                 except Exception as e:
                     logger.warning(f"Evaluation failed for recipe '{recipe.name}' stock={stock_code}: {e}")
                     continue
 
-        logger.info(f"Recipe monitoring: evaluated={evaluated}, signals={signals_found}")
-        return {"status": "ok", "evaluated": evaluated, "signals": signals_found}
+        logger.info(f"Recipe monitoring: evaluated={evaluated}, signals={signals_found}, notifications={notifications_sent}")
+        return {"status": "ok", "evaluated": evaluated, "signals": signals_found, "notifications": notifications_sent}
 
     except Exception as e:
         logger.error(f"Recipe monitoring failed: {e}", exc_info=True)
@@ -282,7 +426,7 @@ def poll_condition_search():
         ).all()
 
         # Collect unique (user_id, condition_id) pairs to avoid duplicate API calls
-        condition_tasks: dict[str, dict] = {}  # condition_id -> {"user_id", "recipe_ids"}
+        condition_tasks: dict[str, dict] = {}  # condition_id -> {"user_id", "recipe_ids", "condition_name"}
         for recipe in recipes:
             signals = recipe.signal_config.get("signals", [])
             for sig in signals:
@@ -293,6 +437,7 @@ def poll_condition_search():
                     if cid not in condition_tasks:
                         condition_tasks[cid] = {
                             "user_id": recipe.user_id,
+                            "condition_name": sig.get("condition_name", cid),
                             "recipe_ids": [],
                         }
                     condition_tasks[cid]["recipe_ids"].append(str(recipe.id))
@@ -304,6 +449,7 @@ def poll_condition_search():
         r = redis.from_url(settings.redis_url)
         polled = 0
         errors = 0
+        notifications_sent = 0
 
         # Group condition_ids by user_id (one KIS client per user)
         user_conditions: dict[str, list[str]] = {}
@@ -347,12 +493,20 @@ def poll_condition_search():
                     )
                     polled += 1
                     logger.info(f"Condition search {cid}: {len(results)} stocks matched")
+
+                    # Send notification if matches found
+                    if results:
+                        cond_name = condition_tasks[cid].get("condition_name", cid)
+                        user_id_val = condition_tasks[cid]["user_id"]
+                        notifications_sent += _send_condition_notification(
+                            db, user_id_val, cid, cond_name, results,
+                        )
                 except Exception as e:
                     errors += 1
                     logger.warning(f"Condition search failed for {cid}: {e}")
 
-        logger.info(f"Condition search polling: polled={polled}, errors={errors}")
-        return {"status": "ok", "polled": polled, "errors": errors}
+        logger.info(f"Condition search polling: polled={polled}, errors={errors}, notifications={notifications_sent}")
+        return {"status": "ok", "polled": polled, "errors": errors, "notifications": notifications_sent}
 
     except Exception as e:
         logger.error(f"Condition search polling failed: {e}", exc_info=True)

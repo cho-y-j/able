@@ -160,6 +160,18 @@ class NotificationService:
                 data.get("session_id", ""), data.get("trade_count", 0),
                 data.get("total_value", 0),
             )
+        elif payload.category == NotificationCategory.ALERT and "signal_type" in data:
+            from app.services.email_service import template_recipe_signal
+            subject, html = template_recipe_signal(
+                data.get("recipe_name", ""), data.get("stock_code", ""),
+                data.get("signal_type", "entry"),
+            )
+        elif payload.category == NotificationCategory.ALERT and "match_count" in data:
+            from app.services.email_service import template_condition_match
+            subject, html = template_condition_match(
+                data.get("condition_name", ""), data.get("match_count", 0),
+                data.get("stock_codes", []),
+            )
         elif payload.category == NotificationCategory.ALERT and "pnl" in data:
             subject, html = template_pnl_alert(
                 data.get("stock_code", ""), data.get("pnl", 0),
@@ -256,4 +268,48 @@ async def notify_pnl_alert(user_id: str, stock_code: str, pnl: float, pnl_pct: f
         message=f"{stock_code} has an unrealized {direction} of ₩{abs(pnl):,.0f} ({pnl_pct:+.1f}%)",
         data={"stock_code": stock_code, "pnl": pnl, "pnl_pct": pnl_pct},
         link="/dashboard/trading",
+    ), db)
+
+
+async def notify_recipe_signal(
+    user_id: str, recipe_id: str, recipe_name: str,
+    stock_code: str, signal_type: str, db=None,
+):
+    """Notify user about a recipe signal (entry or exit)."""
+    action = "진입" if signal_type == "entry" else "청산"
+    await NotificationService.send(NotificationPayload(
+        user_id=user_id,
+        category=NotificationCategory.ALERT,
+        title=f"[{recipe_name}] {stock_code} {action} 시그널",
+        message=f"레시피 '{recipe_name}'에서 {stock_code}의 {action} 시그널이 감지되었습니다.",
+        data={
+            "recipe_id": recipe_id,
+            "recipe_name": recipe_name,
+            "stock_code": stock_code,
+            "signal_type": signal_type,
+        },
+        link=f"/dashboard/recipes/{recipe_id}",
+        send_email=(signal_type == "entry"),
+    ), db)
+
+
+async def notify_condition_match(
+    user_id: str, condition_id: str, condition_name: str,
+    matched_stocks: list[dict], db=None,
+):
+    """Notify user about condition search matches."""
+    count = len(matched_stocks)
+    codes = [s.get("stock_code", "") for s in matched_stocks[:10]]
+    await NotificationService.send(NotificationPayload(
+        user_id=user_id,
+        category=NotificationCategory.ALERT,
+        title=f"조건검색 '{condition_name}': {count}개 종목 매칭",
+        message=f"조건검색 '{condition_name}'에서 {count}개 종목이 매칭되었습니다.",
+        data={
+            "condition_id": condition_id,
+            "condition_name": condition_name,
+            "match_count": count,
+            "stock_codes": codes,
+        },
+        link="/dashboard/recipes",
     ), db)

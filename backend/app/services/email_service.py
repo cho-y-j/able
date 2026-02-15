@@ -122,6 +122,58 @@ def template_pending_approval(session_id: str, trade_count: int, total_value: fl
     return subject, _render_template(content, action_url=None, action_label="Review Trades")
 
 
+def template_recipe_signal(recipe_name: str, stock_code: str, signal_type: str) -> tuple[str, str]:
+    """Returns (subject, html_body) for recipe signal notification."""
+    is_entry = signal_type == "entry"
+    color = "#22c55e" if is_entry else "#ef4444"
+    action_ko = "진입" if is_entry else "청산"
+    badge = "ENTRY SIGNAL" if is_entry else "EXIT SIGNAL"
+    content = f"""
+    <div style="text-align:center; margin-bottom:16px;">
+      <span style="background:{color}20; color:{color}; padding:4px 12px; border-radius:6px; font-size:13px; font-weight:600;">
+        {badge}
+      </span>
+    </div>
+    <h2 style="text-align:center; margin:12px 0 4px; font-size:22px; color:#f1f5f9;">{stock_code}</h2>
+    <p style="text-align:center; color:#94a3b8; font-size:14px; margin:8px 0 16px;">
+      레시피 <strong style="color:#f1f5f9;">{recipe_name}</strong>에서 {action_ko} 시그널이 감지되었습니다.
+    </p>
+    <table style="width:100%; margin-top:16px; border-collapse:collapse;">
+      <tr><td style="padding:8px 0; color:#94a3b8; font-size:13px;">레시피</td><td style="padding:8px 0; text-align:right; color:#f1f5f9; font-weight:600;">{recipe_name}</td></tr>
+      <tr><td style="padding:8px 0; color:#94a3b8; font-size:13px;">종목코드</td><td style="padding:8px 0; text-align:right; color:#f1f5f9; font-weight:600;">{stock_code}</td></tr>
+      <tr><td style="padding:8px 0; color:#94a3b8; font-size:13px;">시그널</td><td style="padding:8px 0; text-align:right; color:{color}; font-weight:600;">{action_ko}</td></tr>
+    </table>
+    """
+    subject = f"[ABLE] {action_ko} Signal: {stock_code} ({recipe_name})"
+    return subject, _render_template(content)
+
+
+def template_condition_match(condition_name: str, match_count: int, stock_codes: list[str]) -> tuple[str, str]:
+    """Returns (subject, html_body) for condition search match notification."""
+    stocks_preview = ", ".join(stock_codes[:5])
+    if len(stock_codes) > 5:
+        stocks_preview += f" 외 {len(stock_codes) - 5}개"
+    content = f"""
+    <div style="text-align:center; margin-bottom:16px;">
+      <span style="background:#3b82f620; color:#3b82f6; padding:4px 12px; border-radius:6px; font-size:13px; font-weight:600;">
+        CONDITION MATCH
+      </span>
+    </div>
+    <p style="text-align:center; color:#f1f5f9; font-size:16px; font-weight:600; margin:12px 0 4px;">
+      {condition_name}
+    </p>
+    <div style="text-align:center; background:#0f172a; border-radius:8px; padding:16px; margin:16px 0;">
+      <p style="color:#94a3b8; font-size:12px; margin:0 0 4px;">매칭 종목 수</p>
+      <p style="color:#60a5fa; font-size:28px; font-weight:700; margin:0;">{match_count}개</p>
+    </div>
+    <p style="color:#94a3b8; font-size:13px; margin:8px 0;">
+      종목: <span style="color:#f1f5f9;">{stocks_preview}</span>
+    </p>
+    """
+    subject = f"[ABLE] Condition Match: {condition_name} ({match_count}개 종목)"
+    return subject, _render_template(content)
+
+
 def template_pnl_alert(stock_code: str, pnl: float, pnl_pct: float) -> tuple[str, str]:
     """Returns (subject, html_body) for P&L alert."""
     color = "#22c55e" if pnl >= 0 else "#ef4444"
