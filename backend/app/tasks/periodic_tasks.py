@@ -164,13 +164,21 @@ def generate_daily_report():
         return {"status": "error", "message": str(e)}
 
 
-@celery_app.task(name="tasks.monitor_active_recipes")
+@celery_app.task(name="tasks.monitor_active_recipes", soft_time_limit=300, time_limit=360)
 def monitor_active_recipes():
     """Evaluate active recipe conditions via REST polling.
 
     Runs every 5 minutes during market hours.
-    For stocks not covered by WebSocket, checks conditions via REST API.
+    Fetches OHLCV data (Yahoo Finance), runs SignalComposer,
+    and caches entry/exit signals to Redis.
     """
+    import json
+    import redis
+    from datetime import datetime as dt, timedelta
+    from app.analysis.composer import SignalComposer
+    from app.integrations.data.factory import get_data_provider
+
+    settings = get_settings()
     db = _get_sync_db()
     try:
         recipes = db.query(TradingRecipe).filter(
@@ -178,53 +186,176 @@ def monitor_active_recipes():
         ).all()
 
         if not recipes:
-            return {"status": "ok", "evaluated": 0}
+            return {"status": "ok", "evaluated": 0, "signals": 0}
+
+        composer = SignalComposer()
+        provider = get_data_provider("yahoo")
+        r = redis.from_url(settings.redis_url)
+
+        end_date = dt.now().strftime("%Y-%m-%d")
+        start_date = (dt.now() - timedelta(days=365)).strftime("%Y-%m-%d")
 
         evaluated = 0
-        for recipe in recipes:
-            for stock_code in (recipe.stock_codes or []):
-                evaluated += 1
-                logger.debug(f"Evaluating recipe '{recipe.name}' for {stock_code}")
+        signals_found = 0
 
-        logger.info(f"Evaluated {evaluated} recipe-stock combinations")
-        return {"status": "ok", "evaluated": evaluated}
+        for recipe in recipes:
+            stock_codes = recipe.stock_codes or []
+            if not stock_codes:
+                continue
+
+            for stock_code in stock_codes:
+                evaluated += 1
+                try:
+                    df = provider.get_ohlcv(stock_code, start_date, end_date)
+                    if df is None or df.empty or len(df) < 60:
+                        logger.debug(f"Insufficient data for {stock_code}, skipping")
+                        continue
+
+                    entry, exit_ = composer.compose(df, recipe.signal_config)
+
+                    should_enter = bool(entry.iloc[-1]) if len(entry) > 0 else False
+                    should_exit = bool(exit_.iloc[-1]) if len(exit_) > 0 else False
+
+                    # Apply custom filters on entry
+                    if should_enter and recipe.custom_filters:
+                        latest = df.iloc[-1]
+                        volume_min = recipe.custom_filters.get("volume_min")
+                        if volume_min and latest["volume"] < volume_min:
+                            should_enter = False
+                        price_range = recipe.custom_filters.get("price_range")
+                        if should_enter and price_range and len(price_range) == 2:
+                            price = latest["close"]
+                            if price < price_range[0] or price > price_range[1]:
+                                should_enter = False
+
+                    if should_enter or should_exit:
+                        signals_found += 1
+                        signal_data = {
+                            "recipe_id": str(recipe.id),
+                            "recipe_name": recipe.name,
+                            "stock_code": stock_code,
+                            "should_enter": should_enter,
+                            "should_exit": should_exit,
+                            "timestamp": dt.now().isoformat(),
+                        }
+                        r.set(
+                            f"recipe:{recipe.id}:signal:{stock_code}",
+                            json.dumps(signal_data),
+                            ex=600,  # 10 min TTL
+                        )
+                        logger.info(
+                            f"Signal detected: recipe='{recipe.name}' stock={stock_code} "
+                            f"enter={should_enter} exit={should_exit}"
+                        )
+
+                except Exception as e:
+                    logger.warning(f"Evaluation failed for recipe '{recipe.name}' stock={stock_code}: {e}")
+                    continue
+
+        logger.info(f"Recipe monitoring: evaluated={evaluated}, signals={signals_found}")
+        return {"status": "ok", "evaluated": evaluated, "signals": signals_found}
 
     except Exception as e:
-        logger.error(f"Recipe monitoring failed: {e}")
+        logger.error(f"Recipe monitoring failed: {e}", exc_info=True)
         return {"status": "error", "message": str(e)}
     finally:
         db.close()
 
 
-@celery_app.task(name="tasks.poll_condition_search")
+@celery_app.task(name="tasks.poll_condition_search", soft_time_limit=300, time_limit=360)
 def poll_condition_search():
     """Poll KIS condition search results for active recipes.
 
     Runs every 10 minutes during market hours.
-    Updates condition search results cache for recipes using kis_condition signals.
+    Executes condition searches via KIS API and caches results in Redis.
     """
+    import asyncio
+    import json
+    import redis
+    from app.integrations.kis.client import KISClient
+
+    settings = get_settings()
     db = _get_sync_db()
     try:
         recipes = db.query(TradingRecipe).filter(
             TradingRecipe.is_active == True,
         ).all()
 
-        condition_recipes = []
+        # Collect unique (user_id, condition_id) pairs to avoid duplicate API calls
+        condition_tasks: dict[str, dict] = {}  # condition_id -> {"user_id", "recipe_ids"}
         for recipe in recipes:
             signals = recipe.signal_config.get("signals", [])
             for sig in signals:
                 if sig.get("type") == "kis_condition":
-                    condition_recipes.append(recipe)
-                    break
+                    cid = sig.get("condition_id", "")
+                    if not cid:
+                        continue
+                    if cid not in condition_tasks:
+                        condition_tasks[cid] = {
+                            "user_id": recipe.user_id,
+                            "recipe_ids": [],
+                        }
+                    condition_tasks[cid]["recipe_ids"].append(str(recipe.id))
 
-        if not condition_recipes:
+        if not condition_tasks:
             return {"status": "ok", "polled": 0}
 
-        logger.info(f"Polling condition search for {len(condition_recipes)} recipes")
-        return {"status": "ok", "polled": len(condition_recipes)}
+        vault = get_vault()
+        r = redis.from_url(settings.redis_url)
+        polled = 0
+        errors = 0
+
+        # Group condition_ids by user_id (one KIS client per user)
+        user_conditions: dict[str, list[str]] = {}
+        for cid, info in condition_tasks.items():
+            uid = str(info["user_id"])
+            user_conditions.setdefault(uid, []).append(cid)
+
+        for user_id_str, condition_ids in user_conditions.items():
+            # Get KIS credentials
+            cred = db.query(ApiCredential).filter(
+                ApiCredential.user_id == user_id_str,
+                ApiCredential.service_type == "kis",
+                ApiCredential.is_active == True,
+            ).first()
+
+            if not cred:
+                logger.warning(f"No KIS credentials for user {user_id_str}, skipping condition search")
+                continue
+
+            try:
+                app_key = vault.decrypt(cred.encrypted_key)
+                app_secret = vault.decrypt(cred.encrypted_secret)
+            except Exception:
+                logger.warning(f"Failed to decrypt credentials for user {user_id_str}")
+                continue
+
+            kis = KISClient(
+                app_key=app_key,
+                app_secret=app_secret,
+                account_number=cred.account_number or "",
+                is_paper=cred.is_paper_trading,
+            )
+
+            for cid in condition_ids:
+                try:
+                    results = asyncio.run(kis.run_condition_search(cid))
+                    r.set(
+                        f"condition:{cid}:results",
+                        json.dumps(results),
+                        ex=900,  # 15 min TTL
+                    )
+                    polled += 1
+                    logger.info(f"Condition search {cid}: {len(results)} stocks matched")
+                except Exception as e:
+                    errors += 1
+                    logger.warning(f"Condition search failed for {cid}: {e}")
+
+        logger.info(f"Condition search polling: polled={polled}, errors={errors}")
+        return {"status": "ok", "polled": polled, "errors": errors}
 
     except Exception as e:
-        logger.error(f"Condition search polling failed: {e}")
+        logger.error(f"Condition search polling failed: {e}", exc_info=True)
         return {"status": "error", "message": str(e)}
     finally:
         db.close()

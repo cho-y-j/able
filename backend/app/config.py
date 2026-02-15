@@ -44,6 +44,12 @@ class Settings(BaseSettings):
     schedule_price_interval_minutes: int = 1  # 포지션 가격 업데이트 간격 (분)
     schedule_price_start_hour: int = 8    # 가격 업데이트 시작 시각
     schedule_price_end_hour: int = 16     # 가격 업데이트 종료 시각
+    schedule_recipe_interval_minutes: int = 5   # 레시피 모니터링 간격 (분)
+    schedule_recipe_start_hour: int = 8         # 레시피 모니터링 시작 시각
+    schedule_recipe_end_hour: int = 16          # 레시피 모니터링 종료 시각
+    schedule_condition_interval_minutes: int = 10  # 조건검색 폴링 간격 (분)
+    schedule_condition_start_hour: int = 9      # 조건검색 시작 시각
+    schedule_condition_end_hour: int = 15       # 조건검색 종료 시각
 
     # CORS
     cors_origins: list[str] = ["http://localhost:3000"]
