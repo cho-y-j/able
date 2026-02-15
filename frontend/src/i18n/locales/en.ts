@@ -269,6 +269,7 @@ const en = {
     unallocated: "Unallocated",
     totalCapital: "Total Capital",
     availableCash: "Available Cash",
+    heatmap: "Portfolio Heatmap",
   },
 
   risk: {

@@ -5,6 +5,7 @@ import api from "@/lib/api";
 import { formatKRW, formatPct, metricColor } from "@/lib/charts";
 import { useI18n } from "@/i18n";
 import RebalancingTab from "./_components/RebalancingTab";
+import Treemap from "./_components/Treemap";
 
 interface PortfolioData {
   portfolio_value: number;
@@ -148,6 +149,23 @@ export default function PortfolioPage() {
       </div>
 
       {activeTab === "overview" && data && (
+        <>
+        {/* Heatmap */}
+        {data.allocation.length > 0 && (
+          <div className="bg-gray-900 rounded-xl border border-gray-800 p-6 mb-6">
+            <h3 className="text-lg font-semibold mb-4">{t.portfolio.heatmap}</h3>
+            <Treemap
+              items={data.allocation.map((a) => ({
+                code: a.stock_code,
+                name: a.stock_name,
+                value: a.value,
+                weight: a.weight,
+                pnl_pct: a.pnl_pct,
+              }))}
+            />
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Allocation */}
           <div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
@@ -212,6 +230,7 @@ export default function PortfolioPage() {
             </div>
           </div>
         </div>
+        </>
       )}
 
       {activeTab === "strategies" && (

@@ -271,6 +271,7 @@ const ko: Translations = {
     unallocated: "미배분",
     totalCapital: "총 자산",
     availableCash: "가용 현금",
+    heatmap: "포트폴리오 히트맵",
   },
 
   risk: {

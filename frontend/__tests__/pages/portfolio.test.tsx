@@ -91,7 +91,7 @@ describe("PortfolioPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Allocation")).toBeTruthy();
     });
-    expect(screen.getByText("Samsung")).toBeTruthy();
+    expect(screen.getAllByText("Samsung").length).toBeGreaterThanOrEqual(1);
   });
 
   it("shows trade statistics", async () => {
