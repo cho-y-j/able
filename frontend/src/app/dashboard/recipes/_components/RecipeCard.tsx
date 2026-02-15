@@ -1,18 +1,6 @@
 "use client";
 
-interface Recipe {
-  id: string;
-  name: string;
-  description: string | null;
-  signal_config: {
-    combinator: string;
-    signals: Array<{ type: string; strategy_type?: string; weight?: number }>;
-  };
-  stock_codes: string[];
-  is_active: boolean;
-  is_template: boolean;
-  created_at: string;
-}
+import type { Recipe } from "../types";
 
 interface RecipeCardProps {
   recipe: Recipe;
@@ -20,8 +8,6 @@ interface RecipeCardProps {
   onActivate: (e: React.MouseEvent) => void;
   onDelete: (e: React.MouseEvent) => void;
 }
-
-export type { Recipe };
 
 export default function RecipeCard({ recipe, onClick, onActivate, onDelete }: RecipeCardProps) {
   const signalCount = recipe.signal_config?.signals?.length || 0;
@@ -31,6 +17,9 @@ export default function RecipeCard({ recipe, onClick, onActivate, onDelete }: Re
     <div
       onClick={onClick}
       className="bg-gray-800 border border-gray-700 rounded-xl p-5 cursor-pointer hover:border-blue-500/50 hover:translate-x-1 transition-all duration-200 group"
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => e.key === "Enter" && onClick()}
     >
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1 min-w-0">
@@ -43,7 +32,7 @@ export default function RecipeCard({ recipe, onClick, onActivate, onDelete }: Re
         </div>
         <div className="flex items-center gap-2 ml-3 flex-shrink-0">
           {recipe.is_active && (
-            <span className="relative flex h-3 w-3">
+            <span className="relative flex h-3 w-3" aria-label="활성 상태">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500" />
             </span>
@@ -77,11 +66,12 @@ export default function RecipeCard({ recipe, onClick, onActivate, onDelete }: Re
 
       <div className="flex items-center justify-between pt-3 border-t border-gray-700">
         <span className="text-xs text-gray-500">
-          {new Date(recipe.created_at).toLocaleDateString("ko-KR")}
+          {recipe.created_at ? new Date(recipe.created_at).toLocaleDateString("ko-KR") : ""}
         </span>
         <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
           <button
             onClick={onActivate}
+            aria-label={recipe.is_active ? "레시피 중지" : "레시피 활성화"}
             className={`text-xs px-3 py-1.5 rounded-lg transition-colors ${
               recipe.is_active
                 ? "bg-red-500/20 text-red-400 hover:bg-red-500/30"
@@ -92,6 +82,7 @@ export default function RecipeCard({ recipe, onClick, onActivate, onDelete }: Re
           </button>
           <button
             onClick={onDelete}
+            aria-label="레시피 삭제"
             className="text-xs px-3 py-1.5 rounded-lg bg-gray-700 text-gray-400 hover:bg-red-500/20 hover:text-red-400 transition-colors"
           >
             삭제

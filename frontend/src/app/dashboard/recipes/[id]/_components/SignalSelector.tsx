@@ -55,14 +55,7 @@ const SIGNAL_CATEGORIES = {
   },
 };
 
-type Combinator = "AND" | "OR" | "MIN_AGREE";
-
-interface SignalEntry {
-  type: string;
-  strategy_type?: string;
-  params: Record<string, unknown>;
-  weight: number;
-}
+import type { SignalEntry, Combinator } from "../../types";
 
 interface SignalSelectorProps {
   selectedSignals: SignalEntry[];

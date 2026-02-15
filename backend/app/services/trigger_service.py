@@ -100,13 +100,13 @@ class TriggerService:
 
         # Volume minimum filter
         volume_min = filters.get("volume_min")
-        if volume_min and latest.get("volume", 0) < volume_min:
+        if volume_min and latest["volume"] < volume_min:
             return False
 
         # Price range filter
         price_range = filters.get("price_range")
         if price_range and len(price_range) == 2:
-            price = latest.get("close", 0)
+            price = latest["close"]
             if price < price_range[0] or price > price_range[1]:
                 return False
 

@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
-import RecipeCard, { type Recipe } from "./_components/RecipeCard";
+import RecipeCard from "./_components/RecipeCard";
+import type { Recipe } from "./types";
 
 export default function RecipesPage() {
   const router = useRouter();
@@ -11,10 +12,18 @@ export default function RecipesPage() {
   const [templates, setTemplates] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"mine" | "templates">("mine");
+  const [alert, setAlert] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    if (alert) {
+      const timer = setTimeout(() => setAlert(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [alert]);
 
   const fetchData = async () => {
     try {
@@ -25,7 +34,7 @@ export default function RecipesPage() {
       setRecipes(recipesRes.data);
       setTemplates(templatesRes.data);
     } catch {
-      /* */
+      setAlert({ type: "error", message: "레시피 목록을 불러오지 못했습니다" });
     } finally {
       setLoading(false);
     }
@@ -36,32 +45,36 @@ export default function RecipesPage() {
     try {
       if (recipe.is_active) {
         await api.post(`/recipes/${recipe.id}/deactivate`);
+        setAlert({ type: "success", message: `"${recipe.name}" 비활성화됨` });
       } else {
         await api.post(`/recipes/${recipe.id}/activate`);
+        setAlert({ type: "success", message: `"${recipe.name}" 활성화됨` });
       }
       fetchData();
     } catch {
-      /* */
+      setAlert({ type: "error", message: "상태 변경에 실패했습니다" });
     }
   };
 
-  const handleDelete = async (e: React.MouseEvent, id: string) => {
+  const handleDelete = async (e: React.MouseEvent, recipe: Recipe) => {
     e.stopPropagation();
     if (!confirm("이 레시피를 삭제하시겠습니까?")) return;
     try {
-      await api.delete(`/recipes/${id}`);
+      await api.delete(`/recipes/${recipe.id}`);
+      setAlert({ type: "success", message: `"${recipe.name}" 삭제됨` });
       fetchData();
     } catch {
-      /* */
+      setAlert({ type: "error", message: "삭제에 실패했습니다" });
     }
   };
 
   const handleClone = async (id: string) => {
     try {
       const { data } = await api.post(`/recipes/${id}/clone`);
+      setAlert({ type: "success", message: "레시피가 복제되었습니다" });
       router.push(`/dashboard/recipes/${data.id}`);
     } catch {
-      /* */
+      setAlert({ type: "error", message: "복제에 실패했습니다" });
     }
   };
 
@@ -69,6 +82,19 @@ export default function RecipesPage() {
 
   return (
     <div className="space-y-6">
+      {/* Alert */}
+      {alert && (
+        <div
+          className={`px-4 py-3 rounded-lg text-sm font-medium ${
+            alert.type === "success"
+              ? "bg-green-500/10 border border-green-500/30 text-green-400"
+              : "bg-red-500/10 border border-red-500/30 text-red-400"
+          }`}
+        >
+          {alert.message}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -159,7 +185,7 @@ export default function RecipesPage() {
                 recipe={recipe}
                 onClick={() => router.push(`/dashboard/recipes/${recipe.id}`)}
                 onActivate={(e) => handleActivate(e, recipe)}
-                onDelete={(e) => handleDelete(e, recipe.id)}
+                onDelete={(e) => handleDelete(e, recipe)}
               />
             ))}
           </div>

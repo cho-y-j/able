@@ -7,15 +7,7 @@ import SignalSelector from "./_components/SignalSelector";
 import ParamTuner from "./_components/ParamTuner";
 import FilterBuilder from "./_components/FilterBuilder";
 import RiskConfig from "./_components/RiskConfig";
-
-interface SignalEntry {
-  type: string;
-  strategy_type?: string;
-  params: Record<string, unknown>;
-  weight: number;
-}
-
-type Combinator = "AND" | "OR" | "MIN_AGREE";
+import type { SignalEntry, Combinator } from "../types";
 
 const STEPS = [
   { key: "signals", label: "시그널 선택" },
@@ -45,13 +37,20 @@ export default function RecipeBuilderPage() {
   const [saving, setSaving] = useState(false);
   const [savedId, setSavedId] = useState<string | null>(recipeId);
   const [loading, setLoading] = useState(!!recipeId);
+  const [alert, setAlert] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
-  // Load existing recipe
   useEffect(() => {
     if (recipeId) {
       loadRecipe();
     }
   }, [recipeId]);
+
+  useEffect(() => {
+    if (alert) {
+      const timer = setTimeout(() => setAlert(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [alert]);
 
   const loadRecipe = async () => {
     try {
@@ -66,7 +65,7 @@ export default function RecipeBuilderPage() {
       setRiskConfig(data.risk_config || { stop_loss: 3, take_profit: 5, position_size: 10 });
       setSavedId(data.id);
     } catch {
-      /* */
+      setAlert({ type: "error", message: "레시피를 불러오지 못했습니다" });
     } finally {
       setLoading(false);
     }
@@ -92,13 +91,15 @@ export default function RecipeBuilderPage() {
     try {
       if (savedId) {
         await api.put(`/recipes/${savedId}`, payload);
+        setAlert({ type: "success", message: "레시피가 저장되었습니다" });
       } else {
         const { data } = await api.post("/recipes", payload);
         setSavedId(data.id);
-        window.history.replaceState(null, "", `/dashboard/recipes/${data.id}`);
+        router.replace(`/dashboard/recipes/${data.id}`);
+        setAlert({ type: "success", message: "레시피가 생성되었습니다" });
       }
     } catch {
-      /* */
+      setAlert({ type: "error", message: "저장에 실패했습니다" });
     } finally {
       setSaving(false);
     }
@@ -108,9 +109,10 @@ export default function RecipeBuilderPage() {
     if (!savedId) return;
     try {
       await api.post(`/recipes/${savedId}/activate`);
-      router.push("/dashboard/recipes");
+      setAlert({ type: "success", message: "자동매매가 활성화되었습니다" });
+      setTimeout(() => router.push("/dashboard/recipes"), 1000);
     } catch {
-      /* */
+      setAlert({ type: "error", message: "활성화에 실패했습니다" });
     }
   };
 
@@ -125,6 +127,19 @@ export default function RecipeBuilderPage() {
 
   return (
     <div className="space-y-6 max-w-4xl">
+      {/* Alert */}
+      {alert && (
+        <div
+          className={`px-4 py-3 rounded-lg text-sm font-medium ${
+            alert.type === "success"
+              ? "bg-green-500/10 border border-green-500/30 text-green-400"
+              : "bg-red-500/10 border border-red-500/30 text-red-400"
+          }`}
+        >
+          {alert.message}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

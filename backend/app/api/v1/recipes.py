@@ -166,8 +166,8 @@ async def backtest_recipe(
     stock_code = req.stock_code
     df = await fetch_ohlcv_data(
         stock_code=stock_code,
-        start_date=req.date_range_start,
-        end_date=req.date_range_end,
+        date_range_start=req.date_range_start,
+        date_range_end=req.date_range_end,
     )
 
     if df is None or df.empty:
@@ -181,13 +181,21 @@ async def backtest_recipe(
     bt = run_backtest(df, entry, exit_)
 
     # Calculate score
-    from app.services.strategy_search import calculate_composite_score, score_to_grade
-    score = calculate_composite_score(bt)
-    grade = score_to_grade(score)
+    from app.analysis.validation.scoring import calculate_composite_score
+    metrics_dict = {
+        "total_return": bt.total_return,
+        "annual_return": bt.annual_return,
+        "sharpe_ratio": bt.sharpe_ratio,
+        "max_drawdown": bt.max_drawdown,
+        "win_rate": bt.win_rate,
+        "profit_factor": bt.profit_factor,
+        "calmar_ratio": bt.calmar_ratio,
+    }
+    score_result = calculate_composite_score(metrics_dict)
 
     return RecipeBacktestResponse(
-        composite_score=score,
-        grade=grade,
+        composite_score=score_result["composite_score"],
+        grade=score_result["grade"],
         metrics={
             "total_return": bt.total_return,
             "annual_return": bt.annual_return,

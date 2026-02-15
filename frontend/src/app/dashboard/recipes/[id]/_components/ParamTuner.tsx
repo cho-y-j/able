@@ -1,11 +1,6 @@
 "use client";
 
-interface SignalEntry {
-  type: string;
-  strategy_type?: string;
-  params: Record<string, unknown>;
-  weight: number;
-}
+import type { SignalEntry } from "../../types";
 
 // Default param ranges by signal type
 const PARAM_RANGES: Record<string, Record<string, { label: string; min: number; max: number; step: number; default: number }>> = {
