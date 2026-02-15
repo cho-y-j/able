@@ -146,6 +146,7 @@ async def mark_read(
     if not notif:
         raise HTTPException(status_code=404, detail="Notification not found")
     notif.is_read = True
+    await db.commit()
     return {"status": "ok"}
 
 
@@ -160,6 +161,7 @@ async def mark_all_read(
         .where(Notification.user_id == user.id, Notification.is_read == False)  # noqa: E712
         .values(is_read=True)
     )
+    await db.commit()
     return {"status": "ok"}
 
 
@@ -201,7 +203,16 @@ async def update_preferences(
     pref = result.scalar_one_or_none()
 
     if not pref:
-        pref = NotificationPreference(user_id=user.id)
+        pref = NotificationPreference(
+            user_id=user.id,
+            in_app_enabled=True,
+            email_enabled=False,
+            trade_alerts=True,
+            agent_alerts=True,
+            order_alerts=True,
+            position_alerts=True,
+            system_alerts=True,
+        )
         db.add(pref)
 
     updates = req.model_dump(exclude_unset=True)
@@ -209,6 +220,7 @@ async def update_preferences(
         setattr(pref, key, val)
 
     await db.flush()
+    await db.commit()
 
     return PreferencesResponse(
         in_app_enabled=pref.in_app_enabled,

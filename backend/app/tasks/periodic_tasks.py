@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 # P&L alert thresholds (percentage) and dedup tracking
 PNL_ALERT_THRESHOLDS = [5, 10, 20]
 _last_pnl_alert: dict[tuple[str, str], int] = {}  # (user_id, stock_code) → last alerted threshold
+_PNL_DEDUP_MAX_SIZE = 500  # max entries before cleanup
 
 
 def _get_pnl_threshold(pnl_pct: float) -> int | None:
@@ -167,6 +168,13 @@ def update_position_prices():
                                         uid_str, stock_code,
                                         float(pos.unrealized_pnl), pnl_pct,
                                     )
+
+                            # Prune dedup cache if too large
+                            if len(_last_pnl_alert) > _PNL_DEDUP_MAX_SIZE:
+                                # Keep only recent half
+                                keys = list(_last_pnl_alert.keys())
+                                for k in keys[: len(keys) // 2]:
+                                    _last_pnl_alert.pop(k, None)
 
                 except Exception as e:
                     logger.warning(f"Price fetch failed for {stock_code}: {e}")

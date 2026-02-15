@@ -2,8 +2,11 @@
 
 import json
 import asyncio
+import logging
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from app.core.security import decode_token
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -31,20 +34,26 @@ class ConnectionManager:
     async def send_to_user(self, user_id: str, message: dict):
         if user_id in self.active_connections:
             data = json.dumps(message, default=str)
+            dead: list[WebSocket] = []
             for ws in self.active_connections[user_id]:
                 try:
                     await ws.send_text(data)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning("WS send failed for user %s: %s", user_id, e)
+                    dead.append(ws)
+            # Clean up dead connections
+            for ws in dead:
+                self.disconnect(ws, user_id)
 
     async def broadcast(self, message: dict):
         data = json.dumps(message, default=str)
-        for connections in self.active_connections.values():
+        for user_id, connections in list(self.active_connections.items()):
             for ws in connections:
                 try:
                     await ws.send_text(data)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning("WS broadcast failed for user %s: %s", user_id, e)
+                    self.disconnect(ws, user_id)
 
 
 manager = ConnectionManager()
