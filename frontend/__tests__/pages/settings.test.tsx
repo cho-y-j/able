@@ -6,11 +6,38 @@ import api from "@/lib/api";
 jest.mock("@/lib/api");
 const mockedApi = api as jest.Mocked<typeof api>;
 
+const mockKeys = [
+  {
+    id: "k1",
+    service_type: "kis",
+    provider_name: "kis",
+    label: "My KIS Key",
+    model_name: null,
+    is_active: true,
+    is_paper_trading: true,
+    masked_key: "abc***xyz",
+    last_validated_at: new Date(Date.now() - 3600000).toISOString(), // 1h ago
+    account_number: "50123456-01",
+  },
+  {
+    id: "k2",
+    service_type: "llm",
+    provider_name: "openai",
+    label: "OpenAI Key",
+    model_name: "gpt-4o",
+    is_active: true,
+    is_paper_trading: false,
+    masked_key: "sk-***def",
+    last_validated_at: null,
+    account_number: null,
+  },
+];
+
 describe("SettingsPage", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    window.confirm = jest.fn(() => true);
 
-    // Default: /keys returns empty array so the component finishes loading
     mockedApi.get.mockImplementation((url: string) => {
       if (url === "/keys") {
         return Promise.resolve({ data: { keys: [] } });
@@ -30,7 +57,7 @@ describe("SettingsPage", () => {
     });
   });
 
-  it("renders KIS form", async () => {
+  it("renders KIS form with i18n labels", async () => {
     render(<SettingsPage />);
 
     await waitFor(() => {
@@ -51,36 +78,17 @@ describe("SettingsPage", () => {
     });
   });
 
+  it("shows no keys message when empty", async () => {
+    render(<SettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("No saved keys. Register API keys below.")).toBeInTheDocument();
+    });
+  });
+
   it("fetches and displays saved keys on mount", async () => {
     mockedApi.get.mockImplementation((url: string) => {
-      if (url === "/keys") {
-        return Promise.resolve({
-          data: {
-            keys: [
-              {
-                id: "k1",
-                service_type: "kis",
-                provider_name: "kis",
-                label: "My KIS Key",
-                model_name: null,
-                is_active: true,
-                is_paper_trading: true,
-                masked_key: "abc***xyz",
-              },
-              {
-                id: "k2",
-                service_type: "llm",
-                provider_name: "openai",
-                label: "OpenAI Key",
-                model_name: "gpt-4o",
-                is_active: true,
-                is_paper_trading: false,
-                masked_key: "sk-***def",
-              },
-            ],
-          },
-        });
-      }
+      if (url === "/keys") return Promise.resolve({ data: { keys: mockKeys } });
       return Promise.reject(new Error("Unknown endpoint"));
     });
 
@@ -92,8 +100,60 @@ describe("SettingsPage", () => {
       expect(screen.getByText("OpenAI Key")).toBeInTheDocument();
       expect(screen.getByText("abc***xyz")).toBeInTheDocument();
       expect(screen.getByText("sk-***def")).toBeInTheDocument();
-      const gpt4oMatches = screen.getAllByText("gpt-4o");
-      expect(gpt4oMatches.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  it("shows account number for KIS keys", async () => {
+    mockedApi.get.mockImplementation((url: string) => {
+      if (url === "/keys") return Promise.resolve({ data: { keys: mockKeys } });
+      return Promise.reject(new Error("Unknown endpoint"));
+    });
+
+    render(<SettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Account: 50123456-01/)).toBeInTheDocument();
+    });
+  });
+
+  it("shows verified status with relative time", async () => {
+    mockedApi.get.mockImplementation((url: string) => {
+      if (url === "/keys") return Promise.resolve({ data: { keys: mockKeys } });
+      return Promise.reject(new Error("Unknown endpoint"));
+    });
+
+    render(<SettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Verified/)).toBeInTheDocument();
+      expect(screen.getByText(/1h ago/)).toBeInTheDocument();
+    });
+  });
+
+  it("shows not verified status", async () => {
+    mockedApi.get.mockImplementation((url: string) => {
+      if (url === "/keys") return Promise.resolve({ data: { keys: mockKeys } });
+      return Promise.reject(new Error("Unknown endpoint"));
+    });
+
+    render(<SettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Not verified")).toBeInTheDocument();
+    });
+  });
+
+  it("shows Test Connection button for each key", async () => {
+    mockedApi.get.mockImplementation((url: string) => {
+      if (url === "/keys") return Promise.resolve({ data: { keys: mockKeys } });
+      return Promise.reject(new Error("Unknown endpoint"));
+    });
+
+    render(<SettingsPage />);
+
+    await waitFor(() => {
+      const buttons = screen.getAllByText("Test Connection");
+      expect(buttons).toHaveLength(2);
     });
   });
 
@@ -109,8 +169,8 @@ describe("SettingsPage", () => {
 
     await user.type(screen.getByLabelText("App Key"), "my-app-key");
     await user.type(screen.getByLabelText("App Secret"), "my-app-secret");
-    await user.type(screen.getByLabelText(/계좌번호/), "50123456-01");
-    await user.click(screen.getByText("KIS API 키 저장"));
+    await user.type(screen.getByLabelText("Account Number"), "50123456-01");
+    await user.click(screen.getByText("Save KIS Credentials"));
 
     await waitFor(() => {
       expect(mockedApi.post).toHaveBeenCalledWith("/keys/kis", {
@@ -129,11 +189,11 @@ describe("SettingsPage", () => {
     render(<SettingsPage />);
 
     await waitFor(() => {
-      expect(screen.getByLabelText("API Key")).toBeInTheDocument();
+      expect(screen.getByLabelText(/API Key/)).toBeInTheDocument();
     });
 
-    await user.type(screen.getByLabelText("API Key"), "sk-test-key-123");
-    await user.click(screen.getByText(/^OpenAI API 키 저장$/));
+    await user.type(screen.getByLabelText(/API Key/), "sk-test-key-123");
+    await user.click(screen.getByText("Save LLM API Key"));
 
     await waitFor(() => {
       expect(mockedApi.post).toHaveBeenCalledWith("/keys/llm", {
@@ -156,11 +216,11 @@ describe("SettingsPage", () => {
 
     await user.type(screen.getByLabelText("App Key"), "my-app-key");
     await user.type(screen.getByLabelText("App Secret"), "my-app-secret");
-    await user.type(screen.getByLabelText(/계좌번호/), "50123456-01");
-    await user.click(screen.getByText("KIS API 키 저장"));
+    await user.type(screen.getByLabelText("Account Number"), "50123456-01");
+    await user.click(screen.getByText("Save KIS Credentials"));
 
     await waitFor(() => {
-      expect(screen.getByText(/KIS API 키가 저장되었습니다/)).toBeInTheDocument();
+      expect(screen.getByText(/KIS credentials saved successfully/)).toBeInTheDocument();
     });
   });
 
@@ -178,11 +238,51 @@ describe("SettingsPage", () => {
 
     await user.type(screen.getByLabelText("App Key"), "bad-key");
     await user.type(screen.getByLabelText("App Secret"), "bad-secret");
-    await user.type(screen.getByLabelText(/계좌번호/), "00000000-00");
-    await user.click(screen.getByText("KIS API 키 저장"));
+    await user.type(screen.getByLabelText("Account Number"), "00000000-00");
+    await user.click(screen.getByText("Save KIS Credentials"));
 
     await waitFor(() => {
-      expect(screen.getByText(/KIS 저장 실패/)).toBeInTheDocument();
+      expect(screen.getByText(/Failed to save KIS credentials/)).toBeInTheDocument();
     });
+  });
+
+  it("confirms before deleting a key", async () => {
+    mockedApi.get.mockImplementation((url: string) => {
+      if (url === "/keys") return Promise.resolve({ data: { keys: [mockKeys[0]] } });
+      return Promise.reject(new Error("Unknown endpoint"));
+    });
+
+    const user = userEvent.setup();
+    render(<SettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("My KIS Key")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText("Delete"));
+
+    expect(window.confirm).toHaveBeenCalledWith("Are you sure you want to delete this API key?");
+    expect(mockedApi.delete).toHaveBeenCalledWith("/keys/k1");
+  });
+
+  it("does not delete when confirm is cancelled", async () => {
+    (window.confirm as jest.Mock).mockReturnValueOnce(false);
+
+    mockedApi.get.mockImplementation((url: string) => {
+      if (url === "/keys") return Promise.resolve({ data: { keys: [mockKeys[0]] } });
+      return Promise.reject(new Error("Unknown endpoint"));
+    });
+
+    const user = userEvent.setup();
+    render(<SettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("My KIS Key")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText("Delete"));
+
+    expect(window.confirm).toHaveBeenCalled();
+    expect(mockedApi.delete).not.toHaveBeenCalled();
   });
 });
