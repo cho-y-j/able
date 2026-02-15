@@ -203,7 +203,12 @@ async def backtest_recipe(
             "max_drawdown": bt.max_drawdown,
             "win_rate": bt.win_rate,
             "total_trades": bt.total_trades,
+            "sortino_ratio": bt.sortino_ratio,
+            "profit_factor": bt.profit_factor,
+            "calmar_ratio": bt.calmar_ratio,
         },
+        equity_curve=bt.equity_curve,
+        trade_log=bt.trade_log,
     )
 
 

@@ -529,3 +529,129 @@ class TestListTemplates:
         result = await list_templates(db=mock_db, _user=test_user)
 
         assert result == []
+
+
+# ─── Recipe Backtest Tests ──────────────────────────────────
+
+
+class TestBacktestRecipe:
+    """Test POST /recipes/{id}/backtest."""
+
+    @pytest.mark.asyncio
+    async def test_backtest_recipe_not_found(self, test_user, mock_db):
+        """Backtesting a non-existent recipe raises 404."""
+        from app.api.v1.recipes import backtest_recipe
+        from app.schemas.recipe import RecipeBacktestRequest
+        from fastapi import HTTPException
+
+        mock_db.execute = AsyncMock(return_value=MockResult([]))
+        req = RecipeBacktestRequest(stock_code="005930")
+
+        with pytest.raises(HTTPException) as exc_info:
+            await backtest_recipe(
+                recipe_id=str(uuid.uuid4()),
+                req=req,
+                db=mock_db,
+                user=test_user,
+            )
+
+        assert exc_info.value.status_code == 404
+
+    @pytest.mark.asyncio
+    @patch("app.analysis.validation.scoring.calculate_composite_score")
+    @patch("app.analysis.backtest.engine.run_backtest")
+    @patch("app.analysis.composer.SignalComposer")
+    @patch("app.services.strategy_search.fetch_ohlcv_data")
+    async def test_backtest_recipe_success(
+        self, mock_fetch, mock_composer_cls, mock_run_bt, mock_score, test_user, mock_db
+    ):
+        """Backtest returns metrics, equity_curve, and trade_log."""
+        from app.api.v1.recipes import backtest_recipe
+        from app.schemas.recipe import RecipeBacktestRequest
+        import pandas as pd
+
+        recipe = _make_recipe(test_user.id)
+        mock_db.execute = AsyncMock(return_value=MockResult([recipe]))
+
+        # Mock OHLCV data
+        df = pd.DataFrame({"close": range(100)}, index=pd.date_range("2025-01-01", periods=100))
+        mock_fetch.return_value = df
+
+        # Mock SignalComposer
+        entry = pd.Series([False] * 100)
+        exit_ = pd.Series([False] * 100)
+        mock_composer_cls.return_value.compose.return_value = (entry, exit_)
+
+        # Mock backtest result
+        mock_bt = MagicMock()
+        mock_bt.total_return = 15.5
+        mock_bt.annual_return = 18.2
+        mock_bt.sharpe_ratio = 1.42
+        mock_bt.sortino_ratio = 1.8
+        mock_bt.max_drawdown = -8.2
+        mock_bt.win_rate = 63.0
+        mock_bt.profit_factor = 1.5
+        mock_bt.calmar_ratio = 2.2
+        mock_bt.total_trades = 24
+        mock_bt.equity_curve = [
+            {"date": "2025-01-02", "value": 10000000},
+            {"date": "2025-06-15", "value": 10500000},
+            {"date": "2025-12-31", "value": 11550000},
+        ]
+        mock_bt.trade_log = [
+            {
+                "entry_date": "2025-02-01",
+                "exit_date": "2025-02-15",
+                "entry_price": 72000,
+                "exit_price": 75000,
+                "pnl_percent": 4.17,
+                "hold_days": 14,
+            }
+        ]
+        mock_run_bt.return_value = mock_bt
+
+        mock_score.return_value = {"composite_score": 72.5, "grade": "B+"}
+
+        req = RecipeBacktestRequest(stock_code="005930")
+        result = await backtest_recipe(
+            recipe_id=str(recipe.id),
+            req=req,
+            db=mock_db,
+            user=test_user,
+        )
+
+        assert result.composite_score == 72.5
+        assert result.grade == "B+"
+        assert result.metrics["total_return"] == 15.5
+        assert result.metrics["sharpe_ratio"] == 1.42
+        assert result.metrics["sortino_ratio"] == 1.8
+        assert result.metrics["profit_factor"] == 1.5
+        assert result.metrics["calmar_ratio"] == 2.2
+        assert len(result.equity_curve) == 3
+        assert result.equity_curve[0].date == "2025-01-02"
+        assert len(result.trade_log) == 1
+        assert result.trade_log[0].pnl_percent == 4.17
+
+    @pytest.mark.asyncio
+    @patch("app.services.strategy_search.fetch_ohlcv_data")
+    async def test_backtest_recipe_no_data(self, mock_fetch, test_user, mock_db):
+        """Backtest with no market data raises 400."""
+        from app.api.v1.recipes import backtest_recipe
+        from app.schemas.recipe import RecipeBacktestRequest
+        from fastapi import HTTPException
+
+        recipe = _make_recipe(test_user.id)
+        mock_db.execute = AsyncMock(return_value=MockResult([recipe]))
+        mock_fetch.return_value = None
+
+        req = RecipeBacktestRequest(stock_code="999999")
+
+        with pytest.raises(HTTPException) as exc_info:
+            await backtest_recipe(
+                recipe_id=str(recipe.id),
+                req=req,
+                db=mock_db,
+                user=test_user,
+            )
+
+        assert exc_info.value.status_code == 400

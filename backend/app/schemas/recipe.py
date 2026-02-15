@@ -58,7 +58,23 @@ class RecipeBacktestRequest(BaseModel):
     date_range_end: str | None = None
 
 
+class TradeLogEntry(BaseModel):
+    entry_date: str
+    exit_date: str
+    entry_price: float
+    exit_price: float
+    pnl_percent: float
+    hold_days: int
+
+
+class EquityCurvePoint(BaseModel):
+    date: str
+    value: float
+
+
 class RecipeBacktestResponse(BaseModel):
     composite_score: float | None
     grade: str | None
     metrics: dict
+    equity_curve: list[EquityCurvePoint] = []
+    trade_log: list[TradeLogEntry] = []
