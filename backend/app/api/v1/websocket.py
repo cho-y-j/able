@@ -188,6 +188,6 @@ async def _stream_price(websocket: WebSocket, user_id: str, stock_code: str):
                 except Exception:
                     return
 
-            await asyncio.sleep(5)
+            await asyncio.sleep(1)  # 1초 간격 실시간 시세
     except asyncio.CancelledError:
         return

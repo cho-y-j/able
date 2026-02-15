@@ -10,6 +10,11 @@ celery_app = Celery(
     backend=settings.redis_url,
 )
 
+# Build price update schedule string from interval
+_price_interval = max(1, settings.schedule_price_interval_minutes)
+_price_cron_minute = f"*/{_price_interval}" if _price_interval < 60 else "0"
+_price_hours = f"{settings.schedule_price_start_hour}-{settings.schedule_price_end_hour}"
+
 celery_app.conf.update(
     task_serializer="json",
     accept_content=["json"],
@@ -33,27 +38,43 @@ celery_app.conf.update(
         "tasks.generate_daily_report": {"queue": "periodic"},
     },
 
-    # Beat schedule for periodic tasks
+    # Beat schedule for periodic tasks (all times KST, configurable via .env)
     beat_schedule={
-        # Daily market intelligence report at 06:30 KST (before market open)
+        # 아침 브리핑 (기본 06:30 KST — 미장 마감 후 기사 반영)
         "daily-market-intelligence": {
             "task": "tasks.generate_daily_report",
-            "schedule": crontab(minute=30, hour=6, day_of_week="1-5"),
+            "schedule": crontab(
+                minute=settings.schedule_briefing_minute,
+                hour=settings.schedule_briefing_hour,
+                day_of_week="1-5",
+            ),
         },
-        # Update position prices every 5 minutes during market hours (09:00-15:30 KST, Mon-Fri)
+        # 포지션 가격 업데이트 (기본 1분 간격, NXT 프리마켓 08:00~장마감 16:00)
         "update-position-prices": {
             "task": "tasks.update_position_prices",
-            "schedule": crontab(minute="*/5", hour="9-15", day_of_week="1-5"),
+            "schedule": crontab(
+                minute=_price_cron_minute,
+                hour=_price_hours,
+                day_of_week="1-5",
+            ),
         },
-        # Auto-start agent sessions at market open (09:05 KST, Mon-Fri)
+        # 장 시작 에이전트 (기본 08:00 KST — NXT 프리마켓 시작)
         "auto-agent-market-open": {
             "task": "tasks.scheduled_agent_run",
-            "schedule": crontab(minute=5, hour=9, day_of_week="1-5"),
+            "schedule": crontab(
+                minute=settings.schedule_agent_open_minute,
+                hour=settings.schedule_agent_open_hour,
+                day_of_week="1-5",
+            ),
         },
-        # Mid-day portfolio check (12:30 KST, Mon-Fri)
+        # 점심 포트폴리오 점검 (기본 12:30 KST)
         "midday-portfolio-check": {
             "task": "tasks.scheduled_agent_run",
-            "schedule": crontab(minute=30, hour=12, day_of_week="1-5"),
+            "schedule": crontab(
+                minute=settings.schedule_agent_midday_minute,
+                hour=settings.schedule_agent_midday_hour,
+                day_of_week="1-5",
+            ),
         },
     },
 )
