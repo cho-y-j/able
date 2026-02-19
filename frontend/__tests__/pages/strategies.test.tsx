@@ -6,6 +6,10 @@ import api from "@/lib/api";
 jest.mock("@/lib/api");
 const mockedApi = api as jest.Mocked<typeof api>;
 
+jest.mock("@/lib/useStockSearch", () => ({
+  useStockSearch: () => ({ results: [], loading: false }),
+}));
+
 // Capture the router.push mock so we can assert on it
 const mockPush = jest.fn();
 jest.mock("next/navigation", () => ({
@@ -205,6 +209,7 @@ describe("StrategiesPage", () => {
         date_range_start: "2024-01-01",
         date_range_end: "2025-12-31",
         optimization_method: "grid",
+        market: "kr",
       });
     });
 

@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import api from "@/lib/api";
 import { useI18n } from "@/i18n";
 import { useRealtimePrice } from "@/lib/useRealtimePrice";
+import { StockAutocomplete } from "@/components/StockAutocomplete";
 
 interface OHLCVItem {
   date: string;
@@ -1431,14 +1432,17 @@ function StockSearchTab({
       <div className="bg-gray-900 rounded-xl border border-gray-800 p-6 mb-6">
         <h3 className="text-lg font-semibold mb-4">Stock Lookup</h3>
         <div className="flex gap-3">
-          <input
-            type="text"
-            value={stockCode}
-            onChange={(e) => setStockCode(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && fetchPrice()}
-            placeholder={t.market.searchPlaceholder}
-            className="flex-1 px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
-          />
+          <div className="flex-1">
+            <StockAutocomplete
+              value={stockCode}
+              onChange={setStockCode}
+              onSelect={(stock) => {
+                setStockCode(stock.code);
+                setTimeout(fetchPrice, 100);
+              }}
+              placeholder={t.market.searchPlaceholder}
+            />
+          </div>
           <select
             value={period}
             onChange={(e) => setPeriod(e.target.value)}

@@ -122,6 +122,10 @@ const en = {
     quickStocks: "Quick Stocks",
     kospiIndex: "KOSPI Index",
     kosdaqIndex: "KOSDAQ Index",
+    stockSearch: "Stock Search",
+    marketKr: "Korea",
+    marketUs: "US",
+    noStocksFound: "No stocks found",
   },
 
   strategies: {

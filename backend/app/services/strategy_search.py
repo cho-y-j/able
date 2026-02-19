@@ -116,6 +116,7 @@ async def run_search(
     optimization_method: str,
     data_source: str,
     db: AsyncSession,
+    market: str = "kr",
 ):
     """Run the full strategy search pipeline."""
     import asyncio
@@ -131,7 +132,7 @@ async def run_search(
     try:
         # ── Step 0: Resolve stock code ────────────────────────
         from app.integrations.data.yahoo_provider import resolve_stock_code
-        resolved_code, resolved_name = resolve_stock_code(stock_code)
+        resolved_code, resolved_name = resolve_stock_code(stock_code, market=market)
         stock_code = resolved_code
         stock_name = resolved_name
 

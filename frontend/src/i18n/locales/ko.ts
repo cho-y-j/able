@@ -124,6 +124,10 @@ const ko: Translations = {
     quickStocks: "주요 종목",
     kospiIndex: "코스피 지수",
     kosdaqIndex: "코스닥 지수",
+    stockSearch: "종목 검색",
+    marketKr: "한국",
+    marketUs: "해외",
+    noStocksFound: "검색 결과가 없습니다",
   },
 
   strategies: {

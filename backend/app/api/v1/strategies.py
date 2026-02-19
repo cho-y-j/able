@@ -70,6 +70,7 @@ async def search_strategies(
                 optimization_method=req.optimization_method,
                 data_source=req.data_source,
                 db=db,
+                market=req.market,
             )
 
     asyncio.create_task(_run_in_background())

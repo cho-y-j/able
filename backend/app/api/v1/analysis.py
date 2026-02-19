@@ -30,6 +30,7 @@ class AnalysisRequest(BaseModel):
     date_range_end: str = "2025-12-31"
     include_macro: bool = True
     data_source: str = "yahoo"
+    market: str = "kr"
 
 
 class ParameterUpdateRequest(BaseModel):
@@ -72,7 +73,7 @@ async def create_ai_report(
             from app.integrations.data.factory import get_data_provider
             from app.integrations.data.yahoo_provider import resolve_stock_code
 
-            resolved_code, resolved_name = resolve_stock_code(req.stock_code)
+            resolved_code, resolved_name = resolve_stock_code(req.stock_code, market=req.market)
 
             def _fetch():
                 provider = get_data_provider(req.data_source)

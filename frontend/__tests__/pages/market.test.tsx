@@ -8,6 +8,9 @@ jest.mock("@/lib/api");
 jest.mock("@/lib/useRealtimePrice", () => ({
   useRealtimePrice: jest.fn(() => ({ tick: null, isConnected: false })),
 }));
+jest.mock("@/lib/useStockSearch", () => ({
+  useStockSearch: () => ({ results: [], loading: false }),
+}));
 
 const mockedApi = api as jest.Mocked<typeof api>;
 const mockedUseRealtimePrice = useRealtimePrice as jest.Mock;

@@ -53,6 +53,7 @@ class StrategySearchRequest(BaseModel):
     optimization_method: str = "grid"  # 'grid', 'bayesian', 'genetic'
     max_iterations: int = 500
     data_source: str = "yahoo"  # 'yahoo' or 'kis'
+    market: str = "kr"  # 'kr' or 'us'
     signal_generators: list[str] | None = None
 
 

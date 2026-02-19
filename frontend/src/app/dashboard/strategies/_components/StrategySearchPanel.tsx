@@ -5,6 +5,8 @@ import api from "@/lib/api";
 import { useI18n } from "@/i18n";
 import { GradeBadge, gradeInfo } from "./GradeBadge";
 import { STRATEGY_TYPE_LABELS, STRATEGY_TYPE_INFO } from "./StrategyCard";
+import { StockAutocomplete } from "@/components/StockAutocomplete";
+import type { StockResult } from "@/lib/useStockSearch";
 
 interface SearchJob {
   job_id: string;
@@ -57,6 +59,7 @@ export function StrategySearchPanel({
 }: StrategySearchPanelProps) {
   const { t } = useI18n();
   const [searchCode, setSearchCode] = useState("");
+  const [market, setMarket] = useState("kr");
   const [dateStart, setDateStart] = useState("2024-01-01");
   const [dateEnd, setDateEnd] = useState("2025-12-31");
   const [method, setMethod] = useState("grid");
@@ -74,6 +77,7 @@ export function StrategySearchPanel({
         date_range_start: dateStart,
         date_range_end: dateEnd,
         optimization_method: method,
+        market,
       });
       const jobId = data.job_id;
       setSearchJob({
@@ -177,15 +181,41 @@ export function StrategySearchPanel({
         </div>
       </details>
 
+      {/* Market toggle */}
+      <div className="flex gap-2 mb-3">
+        <button
+          type="button"
+          onClick={() => setMarket("kr")}
+          className={`px-4 py-1.5 rounded-full text-xs font-medium transition-colors ${
+            market === "kr"
+              ? "bg-blue-600 text-white"
+              : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+          }`}
+        >
+          {t.market?.marketKr || "한국"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setMarket("us")}
+          className={`px-4 py-1.5 rounded-full text-xs font-medium transition-colors ${
+            market === "us"
+              ? "bg-blue-600 text-white"
+              : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+          }`}
+        >
+          {t.market?.marketUs || "해외"}
+        </button>
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-3">
         <div>
-          <label className="block text-xs text-gray-500 mb-1">종목</label>
-          <input
-            type="text"
+          <label className="block text-xs text-gray-500 mb-1">{t.market?.stockSearch || "종목"}</label>
+          <StockAutocomplete
             value={searchCode}
-            onChange={(e) => setSearchCode(e.target.value)}
+            onChange={setSearchCode}
+            onSelect={(stock: StockResult) => setSearchCode(stock.code)}
             placeholder={t.strategies.stockCodePlaceholder}
-            className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
+            market={market}
           />
         </div>
         <div>

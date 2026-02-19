@@ -52,24 +52,25 @@ _KR_NAME_TO_CODE: dict[str, str] = {
 }
 
 
-def resolve_stock_code(raw_input: str) -> tuple[str, str | None]:
+def resolve_stock_code(raw_input: str, market: str = "kr") -> tuple[str, str | None]:
     """Resolve user input to a stock code and optional stock name.
 
-    Handles: Korean names (삼성전자), numeric codes (005930), Yahoo tickers (005930.KS).
-    Returns: (stock_code, stock_name) where stock_name is set if resolved from a name.
+    Args:
+        raw_input: User input (code, name, or ticker)
+        market: Market context — "kr" (default) or "us"
     """
     clean = raw_input.strip()
 
-    # Check name mapping first
+    # Check hardcoded name mapping first
     if clean in _KR_NAME_TO_CODE:
         return _KR_NAME_TO_CODE[clean], clean
 
-    # Case-insensitive lookup
+    # Case-insensitive lookup in hardcoded map
     for name, code in _KR_NAME_TO_CODE.items():
         if name.lower() == clean.lower():
             return code, name
 
-    # If it's a 6-digit number, use directly
+    # If it's a 6-digit number, use directly (Korean stock code)
     if clean.isdigit() and len(clean) == 6:
         return clean, None
 
@@ -77,11 +78,21 @@ def resolve_stock_code(raw_input: str) -> tuple[str, str | None]:
     if clean.endswith((".KS", ".KQ")):
         return clean.split(".")[0], None
 
-    # ASCII alpha only = international ticker (e.g., AAPL)
+    # For Korean market: search KRX registry before treating as US ticker
+    if market == "kr" and clean.isascii() and any(c.isalpha() for c in clean):
+        from app.services.stock_registry import search_stocks
+        results = search_stocks(clean, limit=1)
+        if results:
+            return results[0]["code"], results[0]["name"]
+
+    # US market or no KR match: treat as international ticker
     if clean.isascii() and any(c.isalpha() for c in clean):
+        if market == "us":
+            return clean, None
+        # kr market but no match found — still return as-is for downstream error
         return clean, None
 
-    # Unknown — return as-is and let downstream handle the error
+    # Unknown — return as-is
     return clean, None
 
 

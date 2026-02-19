@@ -18,6 +18,23 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+@router.get("/stock-search")
+async def stock_search(
+    q: str = Query("", min_length=1, max_length=50, description="Search query"),
+    market: str = Query("kr", description="Market: 'kr' or 'us'"),
+    limit: int = Query(20, ge=1, le=50),
+    user: User = Depends(get_current_user),
+):
+    """Search stocks by code or name. Defaults to Korean (KRX) market."""
+    if market == "kr":
+        from app.services.stock_registry import search_stocks
+        results = search_stocks(q, limit=limit)
+    else:
+        # For US market, return the query as-is (treated as ticker)
+        results = [{"code": q.upper(), "name": q.upper(), "market": "US", "sector": ""}]
+    return {"query": q, "market": market, "results": results, "count": len(results)}
+
+
 @router.get("/price/{stock_code}")
 async def get_price(
     stock_code: str,
