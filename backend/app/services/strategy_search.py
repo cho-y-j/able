@@ -280,7 +280,10 @@ async def run_search(
                     strategy.exit_rules = {"signal": strat["strategy_type"]}
                     strategy.risk_params = {"stop_loss_pct": 3.0, "take_profit_pct": 6.0}
                     # Delete old backtests for this strategy
-                    for old_bt in list(strategy.backtests):
+                    old_bts = await db.execute(
+                        select(Backtest).where(Backtest.strategy_id == strategy.id)
+                    )
+                    for old_bt in old_bts.scalars().all():
                         await db.delete(old_bt)
                     await db.flush()
                 else:

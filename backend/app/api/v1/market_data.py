@@ -295,12 +295,12 @@ async def get_indices(
     """Fetch KOSPI/KOSDAQ indices from KIS API."""
     try:
         kis = await get_kis_client(user.id, db)
-        kospi = await kis.get_price("0001")  # KOSPI index code
-        kosdaq = await kis.get_price("1001")  # KOSDAQ index code
+        kospi = await kis.get_index_price("0001")  # KOSPI
+        kosdaq = await kis.get_index_price("1001")  # KOSDAQ
         return {
             "indices": [
-                {"code": "KOSPI", "name": "코스피", **kospi},
-                {"code": "KOSDAQ", "name": "코스닥", **kosdaq},
+                {"code": "KOSPI", "name": "코스피", "stock_code": "0001", **kospi},
+                {"code": "KOSDAQ", "name": "코스닥", "stock_code": "1001", **kosdaq},
             ]
         }
     except ValueError as e:

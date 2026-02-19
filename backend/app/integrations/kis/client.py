@@ -8,9 +8,10 @@ from app.integrations.kis.constants import (
     BALANCE_PATH,
     ORDER_PATH, ORDER_CANCEL_PATH,
     CONDITION_LIST_PATH, CONDITION_RESULT_PATH,
+    INDEX_PRICE_PATH,
     TR_ID_BUY, TR_ID_SELL, TR_ID_BUY_PAPER, TR_ID_SELL_PAPER,
     TR_ID_BALANCE, TR_ID_BALANCE_PAPER, TR_ID_PRICE, TR_ID_DAILY_PRICE,
-    TR_ID_MINUTE_PRICE,
+    TR_ID_MINUTE_PRICE, TR_ID_INDEX_PRICE,
     TR_ID_CONDITION_LIST, TR_ID_CONDITION_RESULT,
 )
 
@@ -78,6 +79,28 @@ class KISClient:
             "high": float(output.get("stck_hgpr", 0)),
             "low": float(output.get("stck_lwpr", 0)),
             "open": float(output.get("stck_oprc", 0)),
+        }
+
+    async def get_index_price(self, index_code: str) -> dict:
+        """Get index (업종) price. Use FID_COND_MRKT_DIV_CODE='U' for indices.
+
+        Args:
+            index_code: "0001" for KOSPI, "1001" for KOSDAQ
+        """
+        params = {
+            "FID_COND_MRKT_DIV_CODE": "U",
+            "FID_INPUT_ISCD": index_code,
+        }
+        data = await self._request("GET", INDEX_PRICE_PATH, TR_ID_INDEX_PRICE, params=params)
+        output = data.get("output", {})
+        return {
+            "current_price": float(output.get("bstp_nmix_prpr", 0)),
+            "change": float(output.get("bstp_nmix_prdy_vrss", 0)),
+            "change_percent": float(output.get("bstp_nmix_prdy_ctrt", 0)),
+            "volume": int(output.get("acml_vol", 0)),
+            "high": float(output.get("bstp_nmix_hgpr", 0)),
+            "low": float(output.get("bstp_nmix_lwpr", 0)),
+            "open": float(output.get("bstp_nmix_oprc", 0)),
         }
 
     async def get_orderbook(self, stock_code: str) -> dict:
