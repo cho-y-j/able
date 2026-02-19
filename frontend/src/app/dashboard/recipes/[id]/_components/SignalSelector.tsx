@@ -29,7 +29,12 @@ export default function SignalSelector({
 
   const toggleSignal = (name: string) => {
     if (selectedNames.has(name)) {
-      onSignalsChange(selectedSignals.filter((s) => (s.strategy_type || s.type) !== name));
+      const newSignals = selectedSignals.filter((s) => (s.strategy_type || s.type) !== name);
+      onSignalsChange(newSignals);
+      // Auto-adjust minAgree if it exceeds new signal count
+      if (minAgree > newSignals.length && newSignals.length > 0) {
+        onMinAgreeChange(newSignals.length);
+      }
     } else {
       onSignalsChange([
         ...selectedSignals,

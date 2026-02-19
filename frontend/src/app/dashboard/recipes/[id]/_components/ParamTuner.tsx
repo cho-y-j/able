@@ -88,8 +88,8 @@ export default function ParamTuner({ signals, onSignalsChange }: ParamTunerProps
                           <div className="flex items-center gap-2">
                             <label className="text-xs text-gray-400">{range.label}</label>
                             {!isDefault && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                                AI 추천
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-300 border border-yellow-500/30">
+                                수정됨
                               </span>
                             )}
                           </div>

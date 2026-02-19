@@ -156,7 +156,10 @@ export default function FilterBuilder({
             ))}
           </div>
         ) : (
-          <p className="text-gray-500 text-sm">종목을 추가하세요</p>
+          <div className="bg-gray-800/50 border border-dashed border-gray-700 rounded-lg p-4 text-center">
+            <p className="text-gray-400 text-sm">대상 종목이 없습니다</p>
+            <p className="text-gray-500 text-xs mt-1">위 검색창에서 종목을 추가하세요. 종목을 추가해야 백테스트와 자동매매를 실행할 수 있습니다.</p>
+          </div>
         )}
       </div>
     </div>

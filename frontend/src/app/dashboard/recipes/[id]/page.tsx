@@ -46,6 +46,7 @@ export default function RecipeBuilderPage() {
   const [isActive, setIsActive] = useState(false);
   const [loading, setLoading] = useState(!!recipeId);
   const [alert, setAlert] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [showActivateConfirm, setShowActivateConfirm] = useState(false);
   const [strategySource, setStrategySource] = useState<{
     name: string;
     strategy_type: string;
@@ -157,8 +158,9 @@ export default function RecipeBuilderPage() {
     if (!savedId) return;
     try {
       await api.post(`/recipes/${savedId}/activate`);
-      setAlert({ type: "success", message: "자동매매가 활성화되었습니다" });
-      setTimeout(() => router.push("/dashboard/recipes"), 1000);
+      setShowActivateConfirm(false);
+      setAlert({ type: "success", message: "자동매매가 활성화되었습니다. 신호 감지 시 자동으로 주문이 실행됩니다." });
+      setTimeout(() => router.push("/dashboard/recipes"), 1500);
     } catch {
       setAlert({ type: "error", message: "활성화에 실패했습니다" });
     }
@@ -254,7 +256,7 @@ export default function RecipeBuilderPage() {
           </button>
           {savedId && (
             <button
-              onClick={activateRecipe}
+              onClick={() => setShowActivateConfirm(true)}
               className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors"
             >
               자동매매 활성화
@@ -272,8 +274,13 @@ export default function RecipeBuilderPage() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="예: MACD + RSI 보수적 전략"
-            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm focus:border-blue-500 focus:outline-none"
+            className={`w-full bg-gray-800 border rounded-lg px-3 py-2.5 text-white text-sm focus:border-blue-500 focus:outline-none ${
+              name.length > 0 && !name.trim() ? "border-red-500" : "border-gray-700"
+            }`}
           />
+          {!name.trim() && name.length > 0 && (
+            <p className="text-red-400 text-xs mt-1">레시피 이름을 입력해주세요</p>
+          )}
         </div>
         <div>
           <label className="text-xs text-gray-400 block mb-1">설명 (선택)</label>
@@ -365,6 +372,40 @@ export default function RecipeBuilderPage() {
           다음 &rarr;
         </button>
       </div>
+
+      {/* Activation Confirmation Dialog */}
+      {showActivateConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-gray-800 border border-gray-700 rounded-2xl p-6 max-w-md mx-4 space-y-4 shadow-2xl">
+            <h3 className="text-lg font-semibold text-white">자동매매를 활성화하시겠습니까?</h3>
+            <div className="space-y-2 text-sm text-gray-400">
+              <p>활성화하면 다음과 같이 동작합니다:</p>
+              <ul className="list-disc list-inside space-y-1 text-gray-300">
+                <li>5분마다 시그널을 자동으로 감지합니다</li>
+                <li>진입/청산 신호 발생 시 <span className="text-green-400 font-medium">실제 주문이 자동 실행</span>됩니다</li>
+                <li>주문은 KIS {isActive ? "" : "모의투자 "}계좌로 전송됩니다</li>
+              </ul>
+              <p className="text-yellow-400/80 text-xs mt-2">
+                리스크 설정을 반드시 확인한 후 활성화하세요.
+              </p>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => setShowActivateConfirm(false)}
+                className="flex-1 bg-gray-700 hover:bg-gray-600 text-gray-300 py-2.5 rounded-lg text-sm font-medium transition-colors"
+              >
+                취소
+              </button>
+              <button
+                onClick={activateRecipe}
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2.5 rounded-lg text-sm font-medium transition-colors"
+              >
+                활성화
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

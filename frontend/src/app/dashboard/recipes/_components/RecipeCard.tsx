@@ -49,7 +49,10 @@ export default function RecipeCard({ recipe, onClick, onActivate, onDelete }: Re
         </div>
         <div className="flex items-center gap-2 ml-3 flex-shrink-0">
           {recipe.is_active && recipe.auto_execute && (
-            <span className="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
+            <span
+              className="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full flex items-center gap-1"
+              title="신호 감지 시 자동으로 주문이 실행됩니다"
+            >
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
@@ -58,7 +61,10 @@ export default function RecipeCard({ recipe, onClick, onActivate, onDelete }: Re
             </span>
           )}
           {recipe.is_active && !recipe.auto_execute && (
-            <span className="bg-blue-500/20 text-blue-400 text-xs px-2 py-0.5 rounded-full">
+            <span
+              className="bg-blue-500/20 text-blue-400 text-xs px-2 py-0.5 rounded-full"
+              title="신호를 감지하고 알림만 보냅니다. 주문은 수동으로 실행하세요."
+            >
               모니터링
             </span>
           )}

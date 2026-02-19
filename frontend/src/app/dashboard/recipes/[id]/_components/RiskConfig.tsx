@@ -195,6 +195,13 @@ export default function RiskConfig({
         </div>
       </div>
 
+      {/* Risk validation warning */}
+      {(riskConfig.stop_loss ?? 0) >= (riskConfig.take_profit ?? 0) && riskConfig.stop_loss > 0 && riskConfig.take_profit > 0 && (
+        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg px-4 py-3 text-sm text-yellow-400">
+          손절({riskConfig.stop_loss}%)이 익절({riskConfig.take_profit}%)보다 크거나 같습니다. 손실이 이익보다 커질 수 있으니 설정을 확인하세요.
+        </div>
+      )}
+
       {/* Backtest Button */}
       <button
         onClick={runBacktest}

@@ -197,6 +197,12 @@ describe("RecipeBuilderPage", () => {
 
     await user.click(screen.getByText("자동매매 활성화"));
 
+    // Confirmation dialog appears — click "활성화" to confirm
+    await waitFor(() => {
+      expect(screen.getByText("자동매매를 활성화하시겠습니까?")).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole("button", { name: "활성화" }));
+
     await waitFor(() => {
       expect(mockedApi.post).toHaveBeenCalledWith("/recipes/r1/activate");
     });
