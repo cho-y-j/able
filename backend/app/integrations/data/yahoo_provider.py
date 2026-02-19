@@ -70,16 +70,19 @@ def resolve_stock_code(raw_input: str, market: str = "kr") -> tuple[str, str | N
         if name.lower() == clean.lower():
             return code, name
 
-    # If it's a 6-digit number, use directly (Korean stock code)
+    # If it's a 6-digit number, use directly (Korean stock code) + resolve name
     if clean.isdigit() and len(clean) == 6:
-        return clean, None
+        from app.services.stock_registry import resolve_stock_name
+        return clean, resolve_stock_name(clean)
 
     # If it already has .KS/.KQ suffix, extract the code
     if clean.endswith((".KS", ".KQ")):
-        return clean.split(".")[0], None
+        code = clean.split(".")[0]
+        from app.services.stock_registry import resolve_stock_name
+        return code, resolve_stock_name(code)
 
-    # For Korean market: search KRX registry before treating as US ticker
-    if market == "kr" and clean.isascii() and any(c.isalpha() for c in clean):
+    # For Korean market: search KRX registry for any text input
+    if market == "kr":
         from app.services.stock_registry import search_stocks
         results = search_stocks(clean, limit=1)
         if results:

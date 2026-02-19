@@ -60,6 +60,7 @@ def search_stocks(query: str, limit: int = 20) -> list[dict]:
     q = query.strip()
     q_upper = q.upper()
 
+    seen: set[str] = set()
     exact = []
     code_prefix = []
     name_prefix = []
@@ -68,12 +69,16 @@ def search_stocks(query: str, limit: int = 20) -> list[dict]:
     for stock in _stocks:
         if stock.code == q:
             exact.append(stock)
-        elif stock.code.startswith(q):
+            seen.add(stock.code)
+        elif stock.code.startswith(q) and stock.code not in seen:
             code_prefix.append(stock)
-        elif stock.name.upper().startswith(q_upper):
+            seen.add(stock.code)
+        elif stock.name.upper().startswith(q_upper) and stock.code not in seen:
             name_prefix.append(stock)
-        elif q_upper in stock.name.upper():
+            seen.add(stock.code)
+        elif q_upper in stock.name.upper() and stock.code not in seen:
             name_contains.append(stock)
+            seen.add(stock.code)
 
     results = exact + code_prefix + name_prefix + name_contains
     return [s.to_dict() for s in results[:limit]]
