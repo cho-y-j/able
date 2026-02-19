@@ -23,6 +23,10 @@ _condition_interval = max(1, settings.schedule_condition_interval_minutes)
 _condition_cron_minute = f"*/{_condition_interval}" if _condition_interval < 60 else "0"
 _condition_hours = f"{settings.schedule_condition_start_hour}-{settings.schedule_condition_end_hour}"
 
+_factor_interval = max(1, settings.schedule_factor_interval_minutes)
+_factor_cron_minute = f"*/{_factor_interval}" if _factor_interval < 60 else "0"
+_factor_hours = f"{settings.schedule_factor_start_hour}-{settings.schedule_factor_end_hour}"
+
 celery_app.conf.update(
     task_serializer="json",
     accept_content=["json"],
@@ -46,6 +50,7 @@ celery_app.conf.update(
         "tasks.generate_daily_report": {"queue": "periodic"},
         "tasks.monitor_active_recipes": {"queue": "periodic"},
         "tasks.poll_condition_search": {"queue": "periodic"},
+        "tasks.collect_factor_snapshots": {"queue": "periodic"},
     },
 
     # Beat schedule for periodic tasks (all times KST, configurable via .env)
@@ -101,6 +106,15 @@ celery_app.conf.update(
             "schedule": crontab(
                 minute=_condition_cron_minute,
                 hour=_condition_hours,
+                day_of_week="1-5",
+            ),
+        },
+        # 팩터 스냅샷 수집 (기본 30분 간격, 장중 09:00~16:00)
+        "collect-factor-snapshots": {
+            "task": "tasks.collect_factor_snapshots",
+            "schedule": crontab(
+                minute=_factor_cron_minute,
+                hour=_factor_hours,
                 day_of_week="1-5",
             ),
         },

@@ -716,3 +716,93 @@ def scheduled_agent_run():
         return {"status": "error", "message": str(e)}
     finally:
         db.close()
+
+
+@celery_app.task(name="tasks.collect_factor_snapshots", soft_time_limit=300, time_limit=360)
+def collect_factor_snapshots():
+    """Collect technical factor snapshots for monitored stocks.
+
+    Runs every 30 minutes during market hours.
+    Extracts 20+ technical factors from OHLCV data for each stock
+    in active recipes and stores them in factor_snapshots table.
+    """
+    from datetime import date as date_type
+    from app.services.factor_collector import extract_technical_factors, _safe_float
+    from app.models.factor_snapshot import FactorSnapshot
+    from app.integrations.data.factory import get_data_provider
+
+    db = _get_sync_db()
+    try:
+        # Get all stock codes from active recipes
+        recipes = db.query(TradingRecipe).filter(
+            TradingRecipe.is_active == True,
+        ).all()
+
+        stock_codes = set()
+        for r in recipes:
+            for code in (r.stock_codes or []):
+                stock_codes.add(code)
+
+        # Also include stocks from open positions
+        positions = db.query(Position).filter(Position.quantity > 0).all()
+        for p in positions:
+            stock_codes.add(p.stock_code)
+
+        if not stock_codes:
+            logger.info("Factor collector: no stocks to monitor")
+            return {"status": "ok", "stocks": 0, "factors": 0}
+
+        provider = get_data_provider()
+        today = date_type.today()
+        total_factors = 0
+
+        for code in stock_codes:
+            try:
+                df = provider.get_ohlcv(code, period="3mo")
+                if df is None or len(df) < 20:
+                    continue
+
+                factors = extract_technical_factors(df)
+                for name, value in factors.items():
+                    safe = _safe_float(value)
+                    if safe is None:
+                        continue
+
+                    from app.services.factor_collector import _FACTOR_REGISTRY
+                    entry = _FACTOR_REGISTRY.get(name, {})
+                    # Check existing
+                    existing = db.query(FactorSnapshot).filter(
+                        FactorSnapshot.snapshot_date == today,
+                        FactorSnapshot.stock_code == code,
+                        FactorSnapshot.timeframe == "daily",
+                        FactorSnapshot.factor_name == name,
+                    ).first()
+
+                    if existing:
+                        existing.value = safe
+                    else:
+                        snap = FactorSnapshot(
+                            snapshot_date=today,
+                            stock_code=code,
+                            timeframe="daily",
+                            factor_name=name,
+                            value=safe,
+                            metadata_={"category": entry.get("category", ""), "source": "collector"},
+                        )
+                        db.add(snap)
+                    total_factors += 1
+
+                db.commit()
+            except Exception as e:
+                logger.warning(f"Factor collection failed for {code}: {e}")
+                db.rollback()
+
+        logger.info(f"Factor collector: {len(stock_codes)} stocks, {total_factors} factors saved")
+        return {"status": "ok", "stocks": len(stock_codes), "factors": total_factors}
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Factor collection failed: {e}")
+        return {"status": "error", "message": str(e)}
+    finally:
+        db.close()

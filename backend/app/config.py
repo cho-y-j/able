@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     schedule_condition_interval_minutes: int = 10  # 조건검색 폴링 간격 (분)
     schedule_condition_start_hour: int = 9      # 조건검색 시작 시각
     schedule_condition_end_hour: int = 15       # 조건검색 종료 시각
+    schedule_factor_interval_minutes: int = 30  # 팩터 수집 간격 (분)
+    schedule_factor_start_hour: int = 9         # 팩터 수집 시작 시각
+    schedule_factor_end_hour: int = 16          # 팩터 수집 종료 시각
 
     # CORS
     cors_origins: list[str] = ["http://localhost:3000"]

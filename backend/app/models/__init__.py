@@ -12,10 +12,12 @@ from app.models.notification import Notification, NotificationPreference
 from app.models.ai_analysis import AIAnalysisResult
 from app.models.daily_report import DailyMarketReport
 from app.models.trading_recipe import TradingRecipe
+from app.models.factor_snapshot import FactorSnapshot
 
 __all__ = [
     "Base", "User", "ApiCredential", "Strategy", "Backtest",
     "Order", "Position", "Trade", "AgentSession", "AgentAction",
     "AgentMemory", "Notification", "NotificationPreference",
     "AIAnalysisResult", "DailyMarketReport", "TradingRecipe",
+    "FactorSnapshot",
 ]
