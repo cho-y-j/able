@@ -13,10 +13,12 @@ from app.integrations.kis.constants import (
     ORDER_PATH, ORDER_CANCEL_PATH,
     CONDITION_LIST_PATH, CONDITION_RESULT_PATH,
     INDEX_PRICE_PATH,
+    INVESTOR_TREND_PATH, VOLUME_RANKING_PATH, PRICE_RANKING_PATH,
     TR_ID_BUY, TR_ID_SELL, TR_ID_BUY_PAPER, TR_ID_SELL_PAPER,
     TR_ID_BALANCE, TR_ID_BALANCE_PAPER, TR_ID_PRICE, TR_ID_DAILY_PRICE,
     TR_ID_MINUTE_PRICE, TR_ID_INDEX_PRICE,
     TR_ID_CONDITION_LIST, TR_ID_CONDITION_RESULT,
+    TR_ID_INVESTOR_TREND, TR_ID_VOLUME_RANKING, TR_ID_PRICE_RANKING,
 )
 
 
@@ -315,3 +317,107 @@ class KISClient:
             "change_percent": float(item.get("prdy_ctrt", 0)),
             "volume": int(item.get("acml_vol", 0)),
         } for item in items if item.get("stck_shrn_iscd")]
+
+    async def get_investor_trends(self, stock_code: str) -> dict[str, Any]:
+        """Get investor trend data (foreign, institutional, individual) for a stock.
+
+        Returns:
+            Dict with foreign_net_buy, institutional_net_buy, individual_net_buy,
+            and their respective amounts.
+        """
+        params = {
+            "FID_COND_MRKT_DIV_CODE": "J",
+            "FID_INPUT_ISCD": stock_code,
+        }
+        data = await self._request("GET", INVESTOR_TREND_PATH, TR_ID_INVESTOR_TREND, params=params)
+        items = data.get("output", [])
+        if not items:
+            return {
+                "foreign_net_buy_qty": 0,
+                "institutional_net_buy_qty": 0,
+                "individual_net_buy_qty": 0,
+                "foreign_net_buy_amt": 0,
+                "institutional_net_buy_amt": 0,
+            }
+        # Most recent day is first item
+        row = items[0] if isinstance(items, list) else items
+        return {
+            "foreign_net_buy_qty": int(row.get("frgn_ntby_qty", 0)),
+            "institutional_net_buy_qty": int(row.get("orgn_ntby_qty", 0)),
+            "individual_net_buy_qty": int(row.get("prsn_ntby_qty", 0)),
+            "foreign_net_buy_amt": int(row.get("frgn_ntby_tr_pbmn", 0)),
+            "institutional_net_buy_amt": int(row.get("orgn_ntby_tr_pbmn", 0)),
+        }
+
+    async def get_volume_ranking(self, limit: int = 30) -> list[dict[str, Any]]:
+        """Get volume ranking for KOSPI/KOSDAQ stocks.
+
+        Returns:
+            List of {rank, stock_code, stock_name, price, change_pct, volume}
+        """
+        params = {
+            "FID_COND_MRKT_DIV_CODE": "J",
+            "FID_COND_SCR_DIV_CODE": "20171",
+            "FID_INPUT_ISCD": "0000",
+            "FID_DIV_CLS_CODE": "0",
+            "FID_BLNG_CLS_CODE": "0",
+            "FID_TRGT_CLS_CODE": "111111111",
+            "FID_TRGT_EXLS_CLS_CODE": "000000",
+            "FID_INPUT_PRICE_1": "",
+            "FID_INPUT_PRICE_2": "",
+            "FID_VOL_CNT": "",
+            "FID_INPUT_DATE_1": "",
+        }
+        data = await self._request("GET", VOLUME_RANKING_PATH, TR_ID_VOLUME_RANKING, params=params)
+        items = data.get("output", [])
+        results = []
+        for i, item in enumerate(items[:limit]):
+            results.append({
+                "rank": i + 1,
+                "stock_code": item.get("mksc_shrn_iscd", ""),
+                "stock_name": item.get("hts_kor_isnm", ""),
+                "price": int(item.get("stck_prpr", 0)),
+                "change_pct": float(item.get("prdy_ctrt", 0)),
+                "volume": int(item.get("acml_vol", 0)),
+            })
+        return results
+
+    async def get_price_ranking(self, direction: str = "up", limit: int = 30) -> list[dict[str, Any]]:
+        """Get price change ranking (up or down).
+
+        Args:
+            direction: "up" for gainers, "down" for losers
+            limit: Max items to return
+
+        Returns:
+            List of {rank, stock_code, stock_name, price, change_pct, volume}
+        """
+        params = {
+            "FID_COND_MRKT_DIV_CODE": "J",
+            "FID_COND_SCR_DIV_CODE": "20170",
+            "FID_INPUT_ISCD": "0000",
+            "FID_RANK_SORT_CLS_CODE": "0" if direction == "up" else "1",
+            "FID_INPUT_CNT_1": "0",
+            "FID_PRC_CLS_CODE": "1",
+            "FID_INPUT_PRICE_1": "",
+            "FID_INPUT_PRICE_2": "",
+            "FID_VOL_CNT": "",
+            "FID_TRGT_CLS_CODE": "0",
+            "FID_TRGT_EXLS_CLS_CODE": "0",
+            "FID_DIV_CLS_CODE": "0",
+            "FID_RSFL_RATE1": "",
+            "FID_RSFL_RATE2": "",
+        }
+        data = await self._request("GET", PRICE_RANKING_PATH, TR_ID_PRICE_RANKING, params=params)
+        items = data.get("output", [])
+        results = []
+        for i, item in enumerate(items[:limit]):
+            results.append({
+                "rank": i + 1,
+                "stock_code": item.get("stck_shrn_iscd", ""),
+                "stock_name": item.get("hts_kor_isnm", ""),
+                "price": int(item.get("stck_prpr", 0)),
+                "change_pct": float(item.get("prdy_ctrt", 0)),
+                "volume": int(item.get("acml_vol", 0)),
+            })
+        return results

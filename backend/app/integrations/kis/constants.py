@@ -42,6 +42,18 @@ CONDITION_RESULT_PATH = "/uapi/domestic-stock/v1/quotations/psearch-result"
 TR_ID_CONDITION_LIST = "HHKST03900300"
 TR_ID_CONDITION_RESULT = "HHKST03900400"
 
+# Investor trends (투자자별 매매동향)
+INVESTOR_TREND_PATH = "/uapi/domestic-stock/v1/quotations/inquire-investor"
+TR_ID_INVESTOR_TREND = "FHKST01010900"
+
+# Volume ranking (거래량 순위)
+VOLUME_RANKING_PATH = "/uapi/domestic-stock/v1/quotations/volume-rank"
+TR_ID_VOLUME_RANKING = "FHPST01710000"
+
+# Price change ranking (등락률 순위)
+PRICE_RANKING_PATH = "/uapi/domestic-stock/v1/ranking/fluctuation"
+TR_ID_PRICE_RANKING = "FHPST01700000"
+
 # WebSocket data types
 WS_REALTIME_EXEC = "H0STCNT0"    # Real-time execution (체결)
 WS_REALTIME_ORDERBOOK = "H0STASP0"  # Real-time orderbook (호가)
