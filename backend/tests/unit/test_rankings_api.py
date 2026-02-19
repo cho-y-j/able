@@ -13,6 +13,30 @@ def test_user():
     return user
 
 
+@pytest.fixture
+def mock_db():
+    db = MagicMock()
+    db.execute = AsyncMock()
+    db.commit = AsyncMock()
+    return db
+
+
+@pytest.fixture
+def mock_kis():
+    kis = MagicMock()
+    kis.get_price_ranking = AsyncMock(return_value=[
+        {"rank": 1, "stock_code": "005930", "stock_name": "삼성전자",
+         "price": 78000, "change_pct": 5.2, "volume": 12300000},
+        {"rank": 2, "stock_code": "000660", "stock_name": "SK하이닉스",
+         "price": 195000, "change_pct": 4.8, "volume": 8100000},
+    ])
+    kis.get_volume_ranking = AsyncMock(return_value=[
+        {"rank": 1, "stock_code": "005930", "stock_name": "삼성전자",
+         "price": 78000, "change_pct": 5.2, "volume": 15000000},
+    ])
+    return kis
+
+
 class TestRankingsCatalog:
     @pytest.mark.asyncio
     async def test_returns_catalog(self, test_user):
@@ -38,33 +62,69 @@ class TestRankingsCatalog:
 
 class TestPriceRankings:
     @pytest.mark.asyncio
-    async def test_returns_list(self, test_user):
+    async def test_returns_data_from_kis(self, test_user, mock_db, mock_kis):
         from app.api.v1.rankings import get_price_rankings
 
-        result = await get_price_rankings(direction="up", limit=30, user=test_user)
+        with patch("app.api.v1.rankings.get_kis_client", AsyncMock(return_value=mock_kis)):
+            result = await get_price_rankings(direction="up", limit=30, user=test_user, db=mock_db)
+        assert len(result) == 2
+        assert result[0].stock_code == "005930"
+        assert result[0].change_pct == 5.2
+
+    @pytest.mark.asyncio
+    async def test_direction_down(self, test_user, mock_db, mock_kis):
+        from app.api.v1.rankings import get_price_rankings
+
+        with patch("app.api.v1.rankings.get_kis_client", AsyncMock(return_value=mock_kis)):
+            result = await get_price_rankings(direction="down", limit=10, user=test_user, db=mock_db)
         assert isinstance(result, list)
 
     @pytest.mark.asyncio
-    async def test_direction_down(self, test_user):
+    async def test_returns_empty_on_error(self, test_user, mock_db):
         from app.api.v1.rankings import get_price_rankings
 
-        result = await get_price_rankings(direction="down", limit=10, user=test_user)
-        assert isinstance(result, list)
+        with patch("app.api.v1.rankings.get_kis_client", AsyncMock(side_effect=Exception("no creds"))):
+            result = await get_price_rankings(direction="up", limit=30, user=test_user, db=mock_db)
+        assert result == []
 
 
 class TestVolumeRankings:
     @pytest.mark.asyncio
-    async def test_returns_list(self, test_user):
+    async def test_returns_data_from_kis(self, test_user, mock_db, mock_kis):
         from app.api.v1.rankings import get_volume_rankings
 
-        result = await get_volume_rankings(limit=30, user=test_user)
-        assert isinstance(result, list)
+        with patch("app.api.v1.rankings.get_kis_client", AsyncMock(return_value=mock_kis)):
+            result = await get_volume_rankings(limit=30, user=test_user, db=mock_db)
+        assert len(result) == 1
+        assert result[0].stock_code == "005930"
+
+    @pytest.mark.asyncio
+    async def test_returns_empty_on_error(self, test_user, mock_db):
+        from app.api.v1.rankings import get_volume_rankings
+
+        with patch("app.api.v1.rankings.get_kis_client", AsyncMock(side_effect=Exception("fail"))):
+            result = await get_volume_rankings(limit=30, user=test_user, db=mock_db)
+        assert result == []
 
 
 class TestInterestStocks:
     @pytest.mark.asyncio
-    async def test_returns_list(self, test_user):
+    async def test_returns_scored_list(self, test_user, mock_db, mock_kis):
         from app.api.v1.rankings import get_interest_stocks
 
-        result = await get_interest_stocks(limit=20, user=test_user)
+        with patch("app.api.v1.rankings.get_kis_client", AsyncMock(return_value=mock_kis)):
+            result = await get_interest_stocks(limit=20, user=test_user, db=mock_db)
         assert isinstance(result, list)
+        assert len(result) >= 1
+        # Check first result has required fields
+        first = result[0]
+        assert first.stock_code == "005930"
+        assert first.score >= 0
+
+    @pytest.mark.asyncio
+    async def test_returns_empty_on_error(self, test_user, mock_db):
+        from app.api.v1.rankings import get_interest_stocks
+
+        with patch("app.api.v1.rankings.get_kis_client", AsyncMock(side_effect=Exception("fail"))):
+            result = await get_interest_stocks(limit=20, user=test_user, db=mock_db)
+        assert result == []

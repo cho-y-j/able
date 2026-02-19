@@ -797,8 +797,42 @@ def collect_factor_snapshots():
                 logger.warning(f"Factor collection failed for {code}: {e}")
                 db.rollback()
 
-        logger.info(f"Factor collector: {len(stock_codes)} stocks, {total_factors} factors saved")
-        return {"status": "ok", "stocks": len(stock_codes), "factors": total_factors}
+        # ── Global/Macro Factors ──────────────────────────────
+        global_count = 0
+        try:
+            from app.services.global_factor_collector import fetch_global_factors
+            global_factors = fetch_global_factors()
+            for name, value in global_factors.items():
+                safe = _safe_float(value)
+                if safe is None:
+                    continue
+                existing = db.query(FactorSnapshot).filter(
+                    FactorSnapshot.snapshot_date == today,
+                    FactorSnapshot.stock_code == "_GLOBAL",
+                    FactorSnapshot.timeframe == "daily",
+                    FactorSnapshot.factor_name == name,
+                ).first()
+                if existing:
+                    existing.value = safe
+                else:
+                    snap = FactorSnapshot(
+                        snapshot_date=today,
+                        stock_code="_GLOBAL",
+                        timeframe="daily",
+                        factor_name=name,
+                        value=safe,
+                        metadata_={"category": "macro", "source": "yfinance"},
+                    )
+                    db.add(snap)
+                global_count += 1
+            db.commit()
+        except Exception as e:
+            logger.warning(f"Global factor collection failed: {e}")
+            db.rollback()
+
+        total_factors += global_count
+        logger.info(f"Factor collector: {len(stock_codes)} stocks + global, {total_factors} factors saved")
+        return {"status": "ok", "stocks": len(stock_codes), "factors": total_factors, "global_factors": global_count}
 
     except Exception as e:
         db.rollback()

@@ -36,8 +36,14 @@ class FactorCatalogEntry(BaseModel):
 async def get_factor_catalog(
     user: User = Depends(get_current_user),
 ):
-    """List all registered factor extractors."""
-    return [FactorCatalogEntry(**f) for f in list_factors()]
+    """List all registered factor extractors including global/macro factors."""
+    technical = [FactorCatalogEntry(**f) for f in list_factors()]
+    try:
+        from app.services.global_factor_collector import get_global_factor_catalog
+        global_factors = [FactorCatalogEntry(**f) for f in get_global_factor_catalog()]
+        return technical + global_factors
+    except Exception:
+        return technical
 
 
 @router.get("/latest/{stock_code}", response_model=list[FactorSnapshotResponse])

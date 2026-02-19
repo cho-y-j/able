@@ -1,12 +1,19 @@
 """Rankings API endpoints for real-time market rankings and interest stocks."""
 
+import logging
+
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
 from app.api.v1.deps import get_current_user
-from app.services.theme_classifier import list_all_themes, classify_stock
-from app.services.market_rankings import compute_interest_score
+from app.db.session import get_db
+from app.services.theme_classifier import list_all_themes
+from app.services.market_rankings import compute_interest_score, build_interest_stocks
+from app.services.kis_service import get_kis_client
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -39,33 +46,35 @@ class InterestStock(BaseModel):
 
 @router.get("/price", response_model=list[RankingEntry])
 async def get_price_rankings(
-    direction: str = Query(default="up", regex="^(up|down)$"),
+    direction: str = Query(default="up", pattern="^(up|down)$"),
     limit: int = Query(default=30, le=50),
     user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    """Get price change rankings (gainers or losers).
-
-    Uses KIS API when available, falls back to empty list.
-    """
+    """Get price change rankings (gainers or losers) via KIS API."""
     try:
-        from app.integrations.kis.client import KISClient
-        from app.api.v1.deps import get_kis_client_for_user
-        # This would need actual KIS client — for now return demo data structure
-        # In production, inject KIS client dependency
-    except Exception:
-        pass
-
-    # Return empty for now — populated when KIS client is available
-    return []
+        kis = await get_kis_client(user.id, db)
+        data = await kis.get_price_ranking(direction=direction, limit=limit)
+        return [RankingEntry(**item) for item in data]
+    except Exception as e:
+        logger.warning("Failed to fetch price rankings: %s", e)
+        return []
 
 
 @router.get("/volume", response_model=list[RankingEntry])
 async def get_volume_rankings(
     limit: int = Query(default=30, le=50),
     user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    """Get volume rankings."""
-    return []
+    """Get volume rankings via KIS API."""
+    try:
+        kis = await get_kis_client(user.id, db)
+        data = await kis.get_volume_ranking(limit=limit)
+        return [RankingEntry(**item) for item in data]
+    except Exception as e:
+        logger.warning("Failed to fetch volume rankings: %s", e)
+        return []
 
 
 @router.get("/themes", response_model=list[ThemeInfo])
@@ -83,12 +92,11 @@ async def get_theme_list(
             ThemeInfo(
                 name=theme,
                 stock_count=len(stocks),
-                stocks=stocks[:5],  # top 5 only
+                stocks=stocks[:5],
             )
             for theme, stocks in sorted(theme_stocks.items())
         ]
     except Exception:
-        # Return all themes with 0 stocks if registry not available
         return [ThemeInfo(name=t, stock_count=0, stocks=[]) for t in list_all_themes()]
 
 
@@ -96,15 +104,48 @@ async def get_theme_list(
 async def get_interest_stocks(
     limit: int = Query(default=20, le=50),
     user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Get today's interest stocks based on composite scoring.
 
-    Combines ranking position, active themes, factor signals, and investor flow.
-    Returns stocks sorted by interest score.
+    Combines KIS rankings, theme classification, factor signals, and investor flow.
     """
-    # In production, this aggregates live data from multiple sources
-    # For now, return empty list — populated by Celery collector
-    return []
+    try:
+        kis = await get_kis_client(user.id, db)
+
+        # Fetch price + volume rankings in parallel
+        price_data = await kis.get_price_ranking(direction="up", limit=30)
+        volume_data = await kis.get_volume_ranking(limit=30)
+
+        # Build theme info for ranked stocks
+        stock_themes: dict[str, list[str]] = {}
+        try:
+            from app.services.stock_registry import get_stock_info
+            from app.services.theme_classifier import classify_stock
+
+            for item in price_data + volume_data:
+                code = item["stock_code"]
+                if code not in stock_themes:
+                    info = get_stock_info(code)
+                    if info:
+                        stock_themes[code] = classify_stock(
+                            getattr(info, "sector", ""),
+                            item.get("stock_name", ""),
+                        )
+        except Exception:
+            pass
+
+        results = build_interest_stocks(
+            price_rankings=price_data,
+            volume_rankings=volume_data,
+            stock_themes=stock_themes,
+            limit=limit,
+        )
+        return [InterestStock(**item) for item in results]
+
+    except Exception as e:
+        logger.warning("Failed to build interest stocks: %s", e)
+        return []
 
 
 @router.get("/catalog")

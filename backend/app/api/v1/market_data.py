@@ -322,6 +322,68 @@ async def get_balance(
         raise HTTPException(status_code=502, detail=f"Failed to fetch balance: {str(e)}")
 
 
+@router.get("/intraday/{stock_code}")
+async def get_intraday_analysis(
+    stock_code: str,
+    interval: int = Query(default=1, description="Minute interval (1,3,5,10,15,30,60)"),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Get intraday minute-level analysis with technical factors and signals.
+
+    Fetches minute OHLCV data from KIS API, computes minute-level factors,
+    generates trading signals, and returns a complete intraday analysis.
+    """
+    from app.services.intraday_analysis import (
+        minute_data_to_df,
+        extract_minute_factors,
+        generate_minute_signals,
+        compute_minute_summary,
+    )
+
+    if interval not in (1, 3, 5, 10, 15, 30, 60):
+        raise HTTPException(status_code=400, detail="Invalid interval. Use 1, 3, 5, 10, 15, 30, or 60.")
+
+    try:
+        kis = await get_kis_client(user.id, db)
+        minute_data = await kis.get_minute_ohlcv(stock_code, interval=interval)
+
+        if not minute_data:
+            return {
+                "stock_code": stock_code,
+                "interval": interval,
+                "candle_count": 0,
+                "factors": {},
+                "signals": [],
+                "summary": {"sentiment": 0, "sentiment_label": "데이터 없음", "recommendation": "장외시간"},
+                "candles": [],
+            }
+
+        df = minute_data_to_df(minute_data)
+        factors = extract_minute_factors(df)
+        signals = generate_minute_signals(factors)
+        summary = compute_minute_summary(factors, signals)
+
+        # Return last 60 candles for chart display
+        recent_candles = minute_data[-60:] if len(minute_data) > 60 else minute_data
+
+        return {
+            "stock_code": stock_code,
+            "interval": interval,
+            "candle_count": len(minute_data),
+            "factors": factors,
+            "signals": signals,
+            "summary": summary,
+            "candles": recent_candles,
+        }
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Intraday analysis failed for {stock_code}: {e}")
+        raise HTTPException(status_code=502, detail=f"분봉 분석 실패: {str(e)}")
+
+
 @router.get("/indices")
 async def get_indices(
     db: AsyncSession = Depends(get_db),
