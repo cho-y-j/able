@@ -18,6 +18,24 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+@router.get("/stock-info-batch")
+async def get_stock_info_batch(
+    codes: str = Query(..., description="Comma-separated stock codes"),
+    user: User = Depends(get_current_user),
+):
+    """Batch lookup stock info (name, market, sector) by codes."""
+    from app.services.stock_registry import get_stock_by_code
+    code_list = [c.strip() for c in codes.split(",") if c.strip()][:50]
+    results = []
+    for code in code_list:
+        info = get_stock_by_code(code)
+        if info:
+            results.append({"code": info.code, "name": info.name, "market": info.market, "sector": info.sector})
+        else:
+            results.append({"code": code, "name": code, "market": "", "sector": ""})
+    return {"results": results}
+
+
 @router.get("/stock-search")
 async def stock_search(
     q: str = Query("", min_length=1, max_length=50, description="Search query"),

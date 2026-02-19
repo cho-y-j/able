@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
+import Link from "next/link";
 import { useTradingStore, type Position, type Order } from "@/store/trading";
 import { useAuthStore } from "@/store/auth";
 import { createWSConnection } from "@/lib/ws";
@@ -21,6 +22,14 @@ export default function TradingPage() {
   const [activeTab, setActiveTab] = useState<"positions" | "orders">("positions");
   const [orderFilter, setOrderFilter] = useState<string>("all");
 
+  // Auto-trading banner
+  const [activeRecipeCount, setActiveRecipeCount] = useState(0);
+
+  // Volume stats from chart OHLCV data
+  const [volumeStats, setVolumeStats] = useState<{
+    rvol: number; vsYesterday: number; todayVolume: number;
+  } | null>(null);
+
   // Quick order form state
   const [orderStock, setOrderStock] = useState("");
   const [orderSide, setOrderSide] = useState<"buy" | "sell">("buy");
@@ -34,6 +43,11 @@ export default function TradingPage() {
     fetchPositions();
     fetchOrders();
     fetchPortfolioStats();
+    // Fetch active recipe count for banner
+    api.get("/recipes").then(({ data }) => {
+      const active = (data as { is_active: boolean }[]).filter((r) => r.is_active);
+      setActiveRecipeCount(active.length);
+    }).catch(() => {});
   }, [fetchPositions, fetchOrders, fetchPortfolioStats]);
 
   // WebSocket for real-time updates
@@ -120,6 +134,27 @@ export default function TradingPage() {
         </div>
       </div>
 
+      {/* Auto-Trading Banner */}
+      {activeRecipeCount > 0 && (
+        <div className="flex items-center justify-between bg-green-500/10 border border-green-500/30 rounded-xl px-4 py-3">
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
+            </span>
+            <span className="text-sm text-green-400 font-medium">
+              {t.trading.autoTradeBanner}: {activeRecipeCount}{t.trading.recipesRunning}
+            </span>
+          </div>
+          <Link
+            href="/dashboard/auto-trading"
+            className="text-xs text-green-400 hover:text-green-300 bg-green-500/20 px-3 py-1.5 rounded-lg transition-colors"
+          >
+            {t.trading.viewAutoTrading}
+          </Link>
+        </div>
+      )}
+
       {/* Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard
@@ -147,8 +182,46 @@ export default function TradingPage() {
 
       {/* Chart + Positions layout */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6">
-        <div className="xl:col-span-2">
-          <StockChart stockCode={selectedStock} />
+        <div className="xl:col-span-2 space-y-4">
+          <StockChart stockCode={selectedStock} onVolumeStats={setVolumeStats} />
+
+          {/* Volume Analysis Panel */}
+          {volumeStats && selectedStock && (
+            <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                {t.trading.volumeAnalysis}
+              </h3>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-gray-800 rounded-lg p-3 text-center">
+                  <p className="text-xs text-gray-500">{t.trading.rvol}</p>
+                  <p className={`text-xl font-bold mt-1 ${
+                    volumeStats.rvol >= 2 ? "text-yellow-400" : volumeStats.rvol >= 1.2 ? "text-green-400" : "text-white"
+                  }`}>
+                    {volumeStats.rvol.toFixed(1)}x
+                  </p>
+                  <p className="text-[10px] text-gray-600 mt-0.5">{t.trading.rvolDesc}</p>
+                </div>
+                <div className="bg-gray-800 rounded-lg p-3 text-center">
+                  <p className="text-xs text-gray-500">{t.trading.vsYesterday}</p>
+                  <p className={`text-xl font-bold mt-1 ${
+                    volumeStats.vsYesterday >= 0 ? "text-green-400" : "text-red-400"
+                  }`}>
+                    {volumeStats.vsYesterday >= 0 ? "+" : ""}{volumeStats.vsYesterday.toFixed(1)}%
+                  </p>
+                </div>
+                <div className="bg-gray-800 rounded-lg p-3 text-center">
+                  <p className="text-xs text-gray-500">{t.trading.todayVolume}</p>
+                  <p className="text-xl font-bold mt-1 text-white">
+                    {volumeStats.todayVolume >= 1_000_000
+                      ? `${(volumeStats.todayVolume / 1_000_000).toFixed(1)}M`
+                      : volumeStats.todayVolume >= 1_000
+                        ? `${(volumeStats.todayVolume / 1_000).toFixed(0)}K`
+                        : volumeStats.todayVolume.toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 sm:p-5 overflow-hidden">
@@ -398,7 +471,24 @@ function PositionCard({ position: p, isSelected, onSelect }: {
   );
 }
 
-function StockChart({ stockCode }: { stockCode: string | null }) {
+function computeSMA(data: { close: number }[], period: number): (number | null)[] {
+  const result: (number | null)[] = [];
+  for (let i = 0; i < data.length; i++) {
+    if (i < period - 1) {
+      result.push(null);
+    } else {
+      let sum = 0;
+      for (let j = i - period + 1; j <= i; j++) sum += data[j].close;
+      result.push(sum / period);
+    }
+  }
+  return result;
+}
+
+function StockChart({ stockCode, onVolumeStats }: {
+  stockCode: string | null;
+  onVolumeStats?: (stats: { rvol: number; vsYesterday: number; todayVolume: number } | null) => void;
+}) {
   const { t } = useI18n();
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<unknown>(null);
@@ -406,7 +496,10 @@ function StockChart({ stockCode }: { stockCode: string | null }) {
   const [error, setError] = useState<string | null>(null);
 
   const renderChart = useCallback(async () => {
-    if (!chartContainerRef.current || !stockCode) return;
+    if (!chartContainerRef.current || !stockCode) {
+      onVolumeStats?.(null);
+      return;
+    }
 
     setLoading(true);
     setError(null);
@@ -418,10 +511,26 @@ function StockChart({ stockCode }: { stockCode: string | null }) {
       if (ohlcv.length === 0) {
         setError(t.trading.noChartData);
         setLoading(false);
+        onVolumeStats?.(null);
         return;
       }
 
-      const { createChart, CandlestickSeries, HistogramSeries } = await import("lightweight-charts");
+      // Compute volume stats
+      if (ohlcv.length >= 2) {
+        const todayVol = ohlcv[ohlcv.length - 1].volume;
+        const yesterdayVol = ohlcv[ohlcv.length - 2].volume;
+        const last20 = ohlcv.slice(-21, -1);
+        const avgVol = last20.length > 0
+          ? last20.reduce((s: number, d: { volume: number }) => s + d.volume, 0) / last20.length
+          : todayVol;
+        onVolumeStats?.({
+          rvol: avgVol > 0 ? todayVol / avgVol : 0,
+          vsYesterday: yesterdayVol > 0 ? ((todayVol - yesterdayVol) / yesterdayVol) * 100 : 0,
+          todayVolume: todayVol,
+        });
+      }
+
+      const { createChart, CandlestickSeries, HistogramSeries, LineSeries } = await import("lightweight-charts");
 
       chartContainerRef.current.innerHTML = "";
 
@@ -465,6 +574,37 @@ function StockChart({ stockCode }: { stockCode: string | null }) {
 
       candleSeries.setData(candleData as Parameters<typeof candleSeries.setData>[0]);
       volumeSeries.setData(volumeData as Parameters<typeof volumeSeries.setData>[0]);
+
+      // SMA 20 / SMA 50 overlay
+      const sma20Values = computeSMA(ohlcv, 20);
+      const sma50Values = computeSMA(ohlcv, 50);
+
+      const sma20Series = chart.addSeries(LineSeries, {
+        color: "#3B82F6",
+        lineWidth: 1,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerVisible: false,
+      });
+
+      const sma50Series = chart.addSeries(LineSeries, {
+        color: "#F59E0B",
+        lineWidth: 1,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerVisible: false,
+      });
+
+      const sma20Data = candleData
+        .map((d: { time: string }, i: number) => sma20Values[i] != null ? { time: d.time, value: sma20Values[i]! } : null)
+        .filter(Boolean);
+      const sma50Data = candleData
+        .map((d: { time: string }, i: number) => sma50Values[i] != null ? { time: d.time, value: sma50Values[i]! } : null)
+        .filter(Boolean);
+
+      sma20Series.setData(sma20Data as Parameters<typeof sma20Series.setData>[0]);
+      sma50Series.setData(sma50Data as Parameters<typeof sma50Series.setData>[0]);
+
       chart.timeScale().fitContent();
       chartRef.current = chart;
 
@@ -480,7 +620,7 @@ function StockChart({ stockCode }: { stockCode: string | null }) {
       setError(t.trading.chartFailed);
       setLoading(false);
     }
-  }, [stockCode, t]);
+  }, [stockCode, t, onVolumeStats]);
 
   useEffect(() => {
     renderChart();
@@ -489,9 +629,23 @@ function StockChart({ stockCode }: { stockCode: string | null }) {
   return (
     <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 sm:p-5">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide">
-          {stockCode ? `${t.trading.chart} — ${stockCode}` : t.trading.chart}
-        </h3>
+        <div className="flex items-center gap-3">
+          <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide">
+            {stockCode ? `${t.trading.chart} — ${stockCode}` : t.trading.chart}
+          </h3>
+          {stockCode && (
+            <div className="flex items-center gap-2 text-[10px]">
+              <span className="flex items-center gap-1">
+                <span className="w-3 h-0.5 bg-blue-500 inline-block rounded" />
+                <span className="text-gray-500">{t.trading.sma20}</span>
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-3 h-0.5 bg-amber-500 inline-block rounded" />
+                <span className="text-gray-500">{t.trading.sma50}</span>
+              </span>
+            </div>
+          )}
+        </div>
         {stockCode && (
           <span className="text-xs text-gray-600">3M</span>
         )}

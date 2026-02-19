@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import api from "@/lib/api";
 import { useI18n } from "@/i18n";
+import { formatKRW } from "@/lib/charts";
 import {
   useTradingWebSocket,
   type OrderUpdateEvent,
@@ -31,6 +32,13 @@ interface SignalAlert {
   timestamp: number;
 }
 
+interface StockInfo {
+  code: string;
+  name: string;
+  market: string;
+  sector: string;
+}
+
 export default function RecipeMonitorPage() {
   const { t } = useI18n();
   const router = useRouter();
@@ -41,6 +49,25 @@ export default function RecipeMonitorPage() {
     Record<string, { price: number; change_percent: number }>
   >({});
   const [signals, setSignals] = useState<SignalAlert[]>([]);
+  const [stockNames, setStockNames] = useState<Record<string, string>>({});
+
+  const fetchStockNames = useCallback(async (codes: string[]) => {
+    if (codes.length === 0) return;
+    try {
+      const { data } = await api.get(
+        `/market/stock-info-batch?codes=${codes.join(",")}`
+      );
+      const nameMap: Record<string, string> = {};
+      for (const item of data.results as StockInfo[]) {
+        if (item.name && item.name !== item.code) {
+          nameMap[item.code] = item.name;
+        }
+      }
+      setStockNames((prev) => ({ ...prev, ...nameMap }));
+    } catch {
+      // fallback: use codes as names
+    }
+  }, []);
 
   const fetchRecipes = useCallback(async () => {
     try {
@@ -68,8 +95,12 @@ export default function RecipeMonitorPage() {
   useEffect(() => {
     fetchRecipes().then((active) => {
       active.forEach((r) => fetchOrders(r.id));
+      // Collect all stock codes and fetch names
+      const allCodes = new Set<string>();
+      active.forEach((r) => r.stock_codes?.forEach((c) => allCodes.add(c)));
+      fetchStockNames(Array.from(allCodes));
     });
-  }, [fetchRecipes, fetchOrders]);
+  }, [fetchRecipes, fetchOrders, fetchStockNames]);
 
   // WebSocket handlers
   const handlePriceUpdate = useCallback((data: PriceUpdateEvent) => {
@@ -100,7 +131,6 @@ export default function RecipeMonitorPage() {
       timestamp: Date.now(),
     };
     setSignals((prev) => [alert, ...prev].slice(0, 20));
-    // Auto-dismiss after 10s
     setTimeout(() => {
       setSignals((prev) => prev.filter((s) => s.timestamp !== alert.timestamp));
     }, 10000);
@@ -168,7 +198,12 @@ export default function RecipeMonitorPage() {
                 {s.signalType === "entry"
                   ? t.recipes.entrySignal
                   : t.recipes.exitSignal}
-                : <span className="font-mono">{s.stockCode}</span> —{" "}
+                :{" "}
+                <span className="font-medium text-white">
+                  {stockNames[s.stockCode] || s.stockCode}
+                </span>{" "}
+                <span className="text-gray-500 font-mono text-xs">{s.stockCode}</span>
+                {" — "}
                 {s.recipeName}
               </p>
               <button
@@ -210,6 +245,7 @@ export default function RecipeMonitorPage() {
               recipe={recipe}
               orders={ordersMap[recipe.id] || []}
               prices={prices}
+              stockNames={stockNames}
               onViewDetail={() =>
                 router.push(`/dashboard/recipes/${recipe.id}`)
               }
@@ -226,12 +262,14 @@ function RecipeMonitorCard({
   recipe,
   orders,
   prices,
+  stockNames,
   onViewDetail,
   t,
 }: {
   recipe: Recipe;
   orders: RecipeOrder[];
   prices: Record<string, { price: number; change_percent: number }>;
+  stockNames: Record<string, string>;
   onViewDetail: () => void;
   t: ReturnType<typeof useI18n>["t"];
 }) {
@@ -252,34 +290,64 @@ function RecipeMonitorCard({
             </span>
             <h3 className="text-white font-semibold truncate">{recipe.name}</h3>
           </div>
+          {recipe.auto_execute && (
+            <span className="text-[10px] text-green-400 bg-green-500/10 px-1.5 py-0.5 rounded mt-1 inline-block">
+              자동매매
+            </span>
+          )}
+          {recipe.is_active && !recipe.auto_execute && (
+            <span className="text-[10px] text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded mt-1 inline-block">
+              모니터링
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Stock Codes with Prices */}
-      <div className="flex flex-wrap gap-1.5 mb-4">
+      {/* Stock Rows with Names and Prices */}
+      <div className="space-y-1.5 mb-4">
         {recipe.stock_codes.map((code) => {
           const priceData = prices[code];
+          const name = stockNames[code];
           return (
-            <span
+            <div
               key={code}
-              className="bg-gray-700 text-gray-300 text-xs px-2 py-1 rounded-full flex items-center gap-1"
+              className="flex items-center justify-between bg-gray-900 rounded-lg px-3 py-2"
             >
-              <span className="font-mono">{code}</span>
-              {priceData && (
-                <span
-                  className={`${
-                    priceData.change_percent >= 0
-                      ? "text-green-400"
-                      : "text-red-400"
-                  }`}
-                >
-                  {priceData.change_percent >= 0 ? "+" : ""}
-                  {priceData.change_percent.toFixed(1)}%
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-sm font-medium text-white truncate">
+                  {name || code}
                 </span>
-              )}
-            </span>
+                {name && (
+                  <span className="text-[11px] text-gray-500 font-mono">{code}</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {priceData ? (
+                  <>
+                    <span className="text-sm font-mono text-gray-300">
+                      {formatKRW(priceData.price)}
+                    </span>
+                    <span
+                      className={`text-xs font-medium ${
+                        priceData.change_percent >= 0
+                          ? "text-green-400"
+                          : "text-red-400"
+                      }`}
+                    >
+                      {priceData.change_percent >= 0 ? "+" : ""}
+                      {priceData.change_percent.toFixed(2)}%
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-xs text-gray-600">--</span>
+                )}
+              </div>
+            </div>
           );
         })}
+        {recipe.stock_codes.length === 0 && (
+          <p className="text-xs text-gray-500 py-2">종목 없음</p>
+        )}
       </div>
 
       {/* Order Stats */}
@@ -298,7 +366,7 @@ function RecipeMonitorCard({
         </div>
       </div>
 
-      {/* Recent Orders */}
+      {/* Recent Orders with Stock Names */}
       {orders.length > 0 && (
         <div className="mb-4">
           <p className="text-xs text-gray-500 mb-2">{t.recipes.recentOrders}</p>
@@ -308,8 +376,8 @@ function RecipeMonitorCard({
                 key={order.id}
                 className="flex items-center justify-between text-xs bg-gray-900 rounded-lg px-2.5 py-1.5"
               >
-                <span className="font-mono text-gray-400">
-                  {order.stock_code}
+                <span className="text-gray-300 truncate max-w-[100px]">
+                  {stockNames[order.stock_code] || order.stock_code}
                 </span>
                 <span
                   className={
