@@ -54,10 +54,17 @@ async def fetch_ohlcv_data(
     from app.integrations.data.factory import get_data_provider
 
     def _fetch():
+        from datetime import datetime as _dt, timedelta
+
         provider = get_data_provider(data_source)
         if date_range_start and date_range_end:
             return provider.get_ohlcv(stock_code, date_range_start, date_range_end)
-        return provider.get_ohlcv(stock_code, period=period)
+        # Convert period string (e.g. "1y", "6mo", "3mo") to date range
+        period_days = {"1y": 365, "6mo": 180, "3mo": 90, "1mo": 30, "5d": 5}
+        days = period_days.get(period, 365)
+        end = _dt.now().strftime("%Y-%m-%d")
+        start = (_dt.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+        return provider.get_ohlcv(stock_code, start, end)
 
     df = await asyncio.to_thread(_fetch)
     if df is None or df.empty or len(df) < 60:

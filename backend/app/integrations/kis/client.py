@@ -1,6 +1,10 @@
+import asyncio
+import logging
 import httpx
 from typing import Any
 from app.integrations.kis.auth import KISTokenManager
+
+logger = logging.getLogger("able.kis.client")
 from app.integrations.kis.constants import (
     REAL_BASE_URL, PAPER_BASE_URL,
     STOCK_PRICE_PATH, STOCK_DAILY_PRICE_PATH, STOCK_MINUTE_PRICE_PATH,
@@ -33,6 +37,9 @@ class KISClient:
 
     async def _request(self, method: str, path: str, tr_id: str,
                        params: dict | None = None, body: dict | None = None) -> dict[str, Any]:
+        # KIS rate limit: ~1 request/second for paper trading
+        await asyncio.sleep(0.25)
+
         token = await self.token_manager.get_token()
         headers = self.token_manager.headers
         headers["tr_id"] = tr_id
@@ -53,7 +60,14 @@ class KISClient:
                     timeout=10.0,
                 )
 
-            resp.raise_for_status()
+            if resp.status_code >= 400:
+                try:
+                    err_body = resp.json()
+                    msg = err_body.get("msg1", resp.text[:200])
+                except Exception:
+                    msg = resp.text[:200]
+                logger.error("KIS API error %s %s: %s - %s", method, path, resp.status_code, msg)
+                resp.raise_for_status()
             return resp.json()
 
     async def validate_credentials(self) -> bool:
@@ -211,6 +225,19 @@ class KISClient:
             tr_id = TR_ID_BUY_PAPER if self.is_paper else TR_ID_BUY
         else:
             tr_id = TR_ID_SELL_PAPER if self.is_paper else TR_ID_SELL
+
+        # Paper trading doesn't support market orders well; use limit at current price
+        if self.is_paper and order_type == "market":
+            order_type = "limit"
+            if price == 0:
+                price_data = await self.get_price(stock_code)
+                # For buy: use ask price; for sell: use bid price
+                if side == "buy":
+                    price = int(price_data.get("current_price", 0))
+                else:
+                    price = int(price_data.get("current_price", 0))
+                logger.info("Paper trading: converted market→limit at %d for %s %s",
+                            price, side, stock_code)
 
         # Order type: "01" = limit, "00" = market (best)
         ord_dvsn = "01" if order_type == "limit" else "00"

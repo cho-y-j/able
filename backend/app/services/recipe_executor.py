@@ -56,6 +56,9 @@ class RecipeExecutor:
         try:
             balance_info = await kis_client.get_balance()
             total_balance = balance_info.get("total_balance", 0)
+            if total_balance <= 0:
+                logger.warning("Balance is 0, using paper-trading default 10M KRW")
+                total_balance = 10_000_000
         except Exception as e:
             logger.warning(f"Failed to get balance, using default: {e}")
             total_balance = 10_000_000  # Fallback

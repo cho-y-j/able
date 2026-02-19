@@ -467,12 +467,14 @@ def monitor_active_recipes():
                                     async def _auto_exec():
                                         async with async_session_factory() as async_db:
                                             executor = RecipeExecutor()
-                                            return await executor.execute(
+                                            results = await executor.execute(
                                                 user_id=str(recipe.user_id),
                                                 recipe=recipe,
                                                 db=async_db,
                                                 stock_code=stock_code,
                                             )
+                                            await async_db.commit()
+                                            return results
 
                                     exec_results = asyncio.run(_auto_exec())
                                     for er in (exec_results or []):
