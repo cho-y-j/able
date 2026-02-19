@@ -11,6 +11,7 @@ import {
 interface RecipeOrder {
   id: string;
   stock_code: string;
+  stock_name: string | null;
   side: string;
   order_type: string;
   quantity: number;
@@ -269,8 +270,13 @@ export default function ExecutionPanel({
                   key={order.id}
                   className="border-b border-gray-700/50 hover:bg-gray-700/30"
                 >
-                  <td className="p-2.5 text-white font-mono text-xs">
-                    {order.stock_code}
+                  <td className="p-2.5">
+                    <p className="text-white text-xs font-medium">
+                      {order.stock_name || order.stock_code}
+                    </p>
+                    {order.stock_name && (
+                      <p className="text-gray-500 text-[10px] font-mono">{order.stock_code}</p>
+                    )}
                   </td>
                   <td className="p-2.5">
                     <span
@@ -298,7 +304,13 @@ export default function ExecutionPanel({
                     {order.execution_strategy || "-"}
                   </td>
                   <td className="p-2.5 text-gray-400 text-xs">
-                    {order.created_at?.split("T")[0]?.split(" ")[0]}
+                    {(() => {
+                      const d = new Date(order.created_at);
+                      return `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
+                    })()}
+                    <span className="text-gray-600 ml-1">
+                      {order.created_at?.split("T")[0]?.slice(5)}
+                    </span>
                   </td>
                 </tr>
               ))}

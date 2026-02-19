@@ -805,7 +805,9 @@ class TestListRecipeOrders:
 
         mock_order = MagicMock()
         mock_order.id = uuid.uuid4()
+        mock_order.recipe_id = recipe_id
         mock_order.stock_code = "005930"
+        mock_order.stock_name = None
         mock_order.side = "buy"
         mock_order.order_type = "market"
         mock_order.quantity = 10

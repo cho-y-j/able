@@ -92,7 +92,10 @@ class RecipeExecutionRequest(BaseModel):
 
 class RecipeOrderResponse(BaseModel):
     id: str
+    recipe_id: str | None = None
+    recipe_name: str | None = None
     stock_code: str
+    stock_name: str | None = None
     side: str
     order_type: str
     quantity: int

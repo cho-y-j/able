@@ -28,7 +28,10 @@ export default function RecipeBuilderPage() {
   const recipeId = params.id === "new" ? null : (params.id as string);
   const fromStrategyId = searchParams.get("from_strategy");
 
-  const [step, setStep] = useState(0);
+  const initialTab = searchParams.get("tab");
+  const [step, setStep] = useState(
+    initialTab === "execution" ? 4 : initialTab === "performance" ? 5 : 0
+  );
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [signals, setSignals] = useState<SignalEntry[]>([]);

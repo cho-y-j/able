@@ -29,8 +29,22 @@ interface Recipe {
 interface RecipeOrder {
   id: string;
   stock_code: string;
+  stock_name?: string;
   side: string;
   quantity: number;
+  status: string;
+  created_at: string;
+}
+
+interface ActivityOrder {
+  id: string;
+  recipe_id?: string;
+  recipe_name?: string;
+  stock_code: string;
+  stock_name?: string;
+  side: string;
+  quantity: number;
+  avg_fill_price?: number;
   status: string;
   created_at: string;
 }
@@ -56,6 +70,10 @@ export default function AutoTradingPage() {
   const [selectedRecipeId, setSelectedRecipeId] = useState<string>("");
   const [executing, setExecuting] = useState(false);
   const [alert, setAlert] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  // Activity feed
+  const [activityOrders, setActivityOrders] = useState<ActivityOrder[]>([]);
+  const [activityFilter, setActivityFilter] = useState<{ recipe?: string; stock?: string; status?: string }>({});
 
   const fetchStockNames = useCallback(async (codes: string[]) => {
     if (codes.length === 0) return;
@@ -105,6 +123,10 @@ export default function AutoTradingPage() {
       active.forEach((r) => r.stock_codes?.forEach((c) => allCodes.add(c)));
       fetchStockNames(Array.from(allCodes));
       if (active.length > 0) setSelectedRecipeId(active[0].id);
+      // Fetch activity feed
+      api.get("/recipes/activity-feed?limit=50").then(({ data }) => {
+        setActivityOrders(data as ActivityOrder[]);
+      }).catch(() => {});
     });
   }, [fetchRecipes, fetchOrders, fetchStockNames, fetchBalance]);
 
@@ -128,6 +150,10 @@ export default function AutoTradingPage() {
       if (recipes.some((r) => r.id === data.recipe_id)) {
         fetchOrders(data.recipe_id);
       }
+      // Refresh activity feed
+      api.get("/recipes/activity-feed?limit=50").then(({ data: feedData }) => {
+        setActivityOrders(feedData as ActivityOrder[]);
+      }).catch(() => {});
     },
     [recipes, fetchOrders]
   );
@@ -348,7 +374,7 @@ export default function AutoTradingPage() {
                     {executing ? t.autoTrading.executing : t.autoTrading.executeNow}
                   </button>
                   <button
-                    onClick={() => router.push(`/dashboard/recipes/${recipe.id}`)}
+                    onClick={() => router.push(`/dashboard/recipes/${recipe.id}?tab=execution`)}
                     className="flex-1 bg-gray-700 hover:bg-gray-600 text-gray-300 py-2 rounded-lg text-xs font-medium transition-colors"
                   >
                     {t.recipes.viewDetail}
@@ -409,6 +435,110 @@ export default function AutoTradingPage() {
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Activity Feed */}
+      <div className="bg-gray-800 border border-gray-700 rounded-xl p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+          <h3 className="text-sm font-semibold text-white">{t.autoTrading.activityFeed}</h3>
+          <div className="flex gap-2 flex-wrap">
+            <select
+              value={activityFilter.recipe || ""}
+              onChange={(e) => setActivityFilter((f) => ({ ...f, recipe: e.target.value || undefined }))}
+              className="bg-gray-900 border border-gray-700 rounded-lg px-2 py-1 text-xs text-gray-300"
+            >
+              <option value="">{t.autoTrading.allRecipes}</option>
+              {recipes.map((r) => (
+                <option key={r.id} value={r.id}>{r.name}</option>
+              ))}
+            </select>
+            <select
+              value={activityFilter.status || ""}
+              onChange={(e) => setActivityFilter((f) => ({ ...f, status: e.target.value || undefined }))}
+              className="bg-gray-900 border border-gray-700 rounded-lg px-2 py-1 text-xs text-gray-300"
+            >
+              <option value="">{t.autoTrading.allStatuses}</option>
+              {["submitted", "filled", "failed", "pending", "cancelled"].map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {(() => {
+          const filtered = activityOrders.filter((o) => {
+            if (activityFilter.recipe && o.recipe_id !== activityFilter.recipe) return false;
+            if (activityFilter.status && o.status !== activityFilter.status) return false;
+            return true;
+          });
+
+          if (filtered.length === 0) {
+            return (
+              <p className="text-center text-gray-500 text-sm py-6">
+                {t.autoTrading.noOrders}
+              </p>
+            );
+          }
+
+          return (
+            <div className="overflow-x-auto -mx-5">
+              <table className="w-full text-xs min-w-[600px]">
+                <thead>
+                  <tr className="text-gray-500 uppercase border-b border-gray-700">
+                    <th className="text-left py-2 px-5">{t.autoTrading.time}</th>
+                    <th className="text-left py-2 px-2">{t.common.stock}</th>
+                    <th className="text-left py-2 px-2">{t.autoTrading.selectRecipe}</th>
+                    <th className="text-left py-2 px-2">{t.common.side}</th>
+                    <th className="text-right py-2 px-2">{t.common.qty}</th>
+                    <th className="text-left py-2 px-5">{t.common.status}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.slice(0, 30).map((o) => {
+                    const d = new Date(o.created_at);
+                    const timeStr = `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
+                    const dateStr = o.created_at?.split("T")[0]?.slice(5);
+                    return (
+                      <tr key={o.id} className="border-b border-gray-700/50 hover:bg-gray-700/30">
+                        <td className="py-2 px-5 text-gray-400">
+                          {timeStr} <span className="text-gray-600">{dateStr}</span>
+                        </td>
+                        <td className="py-2 px-2">
+                          <span className="text-white font-medium">
+                            {o.stock_name || stockNames[o.stock_code] || o.stock_code}
+                          </span>
+                          {(o.stock_name || stockNames[o.stock_code]) && (
+                            <span className="text-gray-600 font-mono ml-1">{o.stock_code}</span>
+                          )}
+                        </td>
+                        <td className="py-2 px-2 text-gray-400">{o.recipe_name || "-"}</td>
+                        <td className="py-2 px-2">
+                          <span className={o.side === "buy" ? "text-green-400" : "text-red-400"}>
+                            {o.side === "buy" ? "BUY" : "SELL"}
+                          </span>
+                        </td>
+                        <td className="py-2 px-2 text-right text-gray-300">
+                          {o.quantity.toLocaleString()}
+                        </td>
+                        <td className="py-2 px-5">
+                          <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${
+                            o.status === "filled" || o.status === "submitted"
+                              ? "bg-green-900/40 text-green-400"
+                              : o.status === "failed"
+                                ? "bg-red-900/40 text-red-400"
+                                : "bg-yellow-900/40 text-yellow-400"
+                          }`}>
+                            {o.status}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

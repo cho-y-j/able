@@ -477,6 +477,10 @@ const en = {
     lastSignal: "Last Signal",
     noOrders: "No orders yet",
     refresh: "Refresh",
+    activityFeed: "Trading Activity",
+    allRecipes: "All Recipes",
+    allStatuses: "All Statuses",
+    time: "Time",
   },
 
   recipes: {

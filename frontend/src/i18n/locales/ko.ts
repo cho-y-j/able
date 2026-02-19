@@ -479,6 +479,10 @@ const ko: Translations = {
     lastSignal: "마지막 신호",
     noOrders: "주문 내역이 없습니다",
     refresh: "새로고침",
+    activityFeed: "전체 거래 활동",
+    allRecipes: "전체 레시피",
+    allStatuses: "전체 상태",
+    time: "시간",
   },
 
   recipes: {

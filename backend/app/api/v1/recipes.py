@@ -88,6 +88,67 @@ async def list_templates(
     return [_recipe_to_response(r) for r in result.scalars().all()]
 
 
+@router.get("/activity-feed", response_model=list[RecipeOrderResponse])
+async def get_activity_feed(
+    recipe_id: str | None = Query(default=None),
+    stock_code: str | None = Query(default=None),
+    status: str | None = Query(default=None),
+    limit: int = Query(default=50, le=200),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Get consolidated order activity across all user's recipes."""
+    # Get all user's recipe IDs
+    recipe_stmt = select(TradingRecipe.id, TradingRecipe.name).where(
+        TradingRecipe.user_id == user.id
+    )
+    recipe_result = await db.execute(recipe_stmt)
+    recipe_rows = recipe_result.all()
+    recipe_ids = [r.id for r in recipe_rows]
+    recipe_names = {r.id: r.name for r in recipe_rows}
+
+    if not recipe_ids:
+        return []
+
+    stmt = (
+        select(Order)
+        .where(Order.recipe_id.in_(recipe_ids))
+        .order_by(Order.created_at.desc())
+    )
+
+    if recipe_id:
+        stmt = stmt.where(Order.recipe_id == uuid.UUID(recipe_id))
+    if stock_code:
+        stmt = stmt.where(Order.stock_code == stock_code)
+    if status:
+        stmt = stmt.where(Order.status == status)
+
+    stmt = stmt.limit(limit)
+    result = await db.execute(stmt)
+    orders = result.scalars().all()
+
+    return [
+        RecipeOrderResponse(
+            id=str(o.id),
+            recipe_id=str(o.recipe_id) if o.recipe_id else None,
+            recipe_name=recipe_names.get(o.recipe_id) if o.recipe_id else None,
+            stock_code=o.stock_code,
+            stock_name=getattr(o, "stock_name", None),
+            side=o.side,
+            order_type=o.order_type,
+            quantity=o.quantity,
+            avg_fill_price=float(o.avg_fill_price) if o.avg_fill_price else None,
+            kis_order_id=o.kis_order_id,
+            status=o.status,
+            execution_strategy=o.execution_strategy,
+            slippage_bps=o.slippage_bps,
+            error_message=o.error_message,
+            created_at=o.created_at,
+        )
+        for o in orders
+    ]
+
+
 @router.get("/{recipe_id}", response_model=RecipeResponse)
 async def get_recipe(
     recipe_id: str,
@@ -424,7 +485,9 @@ async def list_recipe_orders(
     return [
         RecipeOrderResponse(
             id=str(o.id),
+            recipe_id=str(o.recipe_id) if o.recipe_id else None,
             stock_code=o.stock_code,
+            stock_name=getattr(o, "stock_name", None),
             side=o.side,
             order_type=o.order_type,
             quantity=o.quantity,
