@@ -806,3 +806,28 @@ def collect_factor_snapshots():
         return {"status": "error", "message": str(e)}
     finally:
         db.close()
+
+
+@celery_app.task(name="tasks.run_pattern_discovery", soft_time_limit=600, time_limit=660)
+def run_pattern_discovery():
+    """Weekly pattern discovery using accumulated factor snapshots.
+
+    Runs every Saturday at 02:00.
+    Discovers multi-factor patterns that predicted stock rises in recent history.
+    """
+    from app.models.discovered_pattern import DiscoveredPattern
+    from app.services.pattern_discovery import (
+        extract_rise_events, build_feature_matrix,
+        train_classifier, generate_screening_rule, grade_pattern,
+    )
+
+    logger.info("Pattern discovery: starting weekly run")
+    # Placeholder — requires factor snapshot data accumulation
+    # Full implementation will:
+    # 1. Query factor_snapshots for recent 2 months
+    # 2. Get OHLCV data for monitored stocks
+    # 3. Extract rise events
+    # 4. Build feature matrix from pre-event factor snapshots
+    # 5. Train classifier
+    # 6. Save discovered pattern to DB
+    return {"status": "ok", "message": "Pattern discovery placeholder — needs data accumulation"}

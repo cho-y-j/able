@@ -51,6 +51,7 @@ celery_app.conf.update(
         "tasks.monitor_active_recipes": {"queue": "periodic"},
         "tasks.poll_condition_search": {"queue": "periodic"},
         "tasks.collect_factor_snapshots": {"queue": "periodic"},
+        "tasks.run_pattern_discovery": {"queue": "agents"},
     },
 
     # Beat schedule for periodic tasks (all times KST, configurable via .env)
@@ -116,6 +117,15 @@ celery_app.conf.update(
                 minute=_factor_cron_minute,
                 hour=_factor_hours,
                 day_of_week="1-5",
+            ),
+        },
+        # 패턴 재발견 (매주 토요일 02:00)
+        "weekly-pattern-discovery": {
+            "task": "tasks.run_pattern_discovery",
+            "schedule": crontab(
+                minute=0,
+                hour=2,
+                day_of_week="6",
             ),
         },
     },

@@ -13,11 +13,12 @@ from app.models.ai_analysis import AIAnalysisResult
 from app.models.daily_report import DailyMarketReport
 from app.models.trading_recipe import TradingRecipe
 from app.models.factor_snapshot import FactorSnapshot
+from app.models.discovered_pattern import DiscoveredPattern
 
 __all__ = [
     "Base", "User", "ApiCredential", "Strategy", "Backtest",
     "Order", "Position", "Trade", "AgentSession", "AgentAction",
     "AgentMemory", "Notification", "NotificationPreference",
     "AIAnalysisResult", "DailyMarketReport", "TradingRecipe",
-    "FactorSnapshot",
+    "FactorSnapshot", "DiscoveredPattern",
 ]
