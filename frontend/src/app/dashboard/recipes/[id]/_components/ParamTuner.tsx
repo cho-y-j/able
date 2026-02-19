@@ -1,35 +1,11 @@
 "use client";
 
+import {
+  SIGNAL_INFO,
+  FULL_PARAM_RANGES,
+  CATEGORY_COLORS,
+} from "@/lib/signalMetadata";
 import type { SignalEntry } from "../../types";
-
-// Default param ranges by signal type
-const PARAM_RANGES: Record<string, Record<string, { label: string; min: number; max: number; step: number; default: number }>> = {
-  sma_crossover: {
-    fast_period: { label: "빠른 이평선", min: 5, max: 30, step: 1, default: 10 },
-    slow_period: { label: "느린 이평선", min: 30, max: 200, step: 5, default: 50 },
-  },
-  rsi_mean_reversion: {
-    period: { label: "RSI 기간", min: 5, max: 30, step: 1, default: 14 },
-    oversold: { label: "과매도", min: 15, max: 40, step: 1, default: 30 },
-    overbought: { label: "과매수", min: 60, max: 85, step: 1, default: 70 },
-  },
-  macd_crossover: {
-    fast_period: { label: "빠른 기간", min: 5, max: 20, step: 1, default: 12 },
-    slow_period: { label: "느린 기간", min: 20, max: 50, step: 1, default: 26 },
-    signal_period: { label: "시그널 기간", min: 5, max: 15, step: 1, default: 9 },
-  },
-  volume_spike: {
-    lookback: { label: "평균 기간", min: 10, max: 100, step: 5, default: 50 },
-    rvol_threshold: { label: "RVOL 임계값", min: 1.5, max: 5.0, step: 0.1, default: 2.0 },
-  },
-  vwap_deviation: {
-    band_mult: { label: "밴드 배수", min: 1.0, max: 3.0, step: 0.1, default: 2.0 },
-  },
-  volume_breakout: {
-    price_lookback: { label: "가격 기간", min: 10, max: 60, step: 5, default: 20 },
-    rvol_threshold: { label: "RVOL 임계값", min: 1.5, max: 5.0, step: 0.1, default: 2.0 },
-  },
-};
 
 interface ParamTunerProps {
   signals: SignalEntry[];
@@ -56,19 +32,32 @@ export default function ParamTuner({ signals, onSignalsChange }: ParamTunerProps
     <div className="space-y-6">
       <div>
         <h3 className="text-lg font-semibold text-white mb-1">파라미터 조정</h3>
-        <p className="text-gray-400 text-sm">각 시그널의 파라미터를 조정하세요</p>
+        <p className="text-gray-400 text-sm">
+          각 시그널의 파라미터를 조정하세요. 기본값은 일반적으로 잘 작동하는 설정입니다.
+        </p>
       </div>
 
       {signals.length === 0 ? (
-        <p className="text-gray-500 text-center py-8">선택된 시그널이 없습니다</p>
+        <p className="text-gray-500 text-center py-8">선택된 시그널이 없습니다. 시그널 선택 단계로 돌아가세요.</p>
       ) : (
         signals.map((signal, idx) => {
           const sigName = signal.strategy_type || signal.type;
-          const ranges = PARAM_RANGES[sigName] || {};
+          const info = SIGNAL_INFO[sigName];
+          const ranges = FULL_PARAM_RANGES[sigName] || {};
+          const catColor = info ? (CATEGORY_COLORS[info.category] || "bg-gray-700 text-gray-400") : "";
+
           return (
             <div key={idx} className="bg-gray-800 rounded-xl p-4 border border-gray-700">
-              <div className="flex items-center justify-between mb-4">
-                <h4 className="text-sm font-medium text-white">{sigName}</h4>
+              {/* Signal header */}
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2">
+                  <h4 className="text-sm font-medium text-white">{info?.label || sigName}</h4>
+                  {info && (
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded border ${catColor}`}>
+                      {info.category}
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-center gap-2">
                   <label className="text-xs text-gray-400">가중치:</label>
                   <input
@@ -82,19 +71,31 @@ export default function ParamTuner({ signals, onSignalsChange }: ParamTunerProps
                   />
                 </div>
               </div>
+              {info && (
+                <p className="text-xs text-gray-500 mb-4">{info.description}</p>
+              )}
 
               {Object.keys(ranges).length === 0 ? (
-                <p className="text-gray-500 text-xs">기본 파라미터 사용</p>
+                <p className="text-gray-500 text-xs italic">이 시그널의 파라미터 정보가 없습니다. 기본값으로 실행됩니다.</p>
               ) : (
                 <div className="space-y-3">
                   {Object.entries(ranges).map(([paramName, range]) => {
                     const currentVal = (signal.params[paramName] as number) ?? range.default;
+                    const isDefault = currentVal === range.default;
                     return (
                       <div key={paramName}>
                         <div className="flex items-center justify-between mb-1">
-                          <label className="text-xs text-gray-400">{range.label}</label>
+                          <div className="flex items-center gap-2">
+                            <label className="text-xs text-gray-400">{range.label}</label>
+                            {!isDefault && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                                AI 추천
+                              </span>
+                            )}
+                          </div>
                           <span className="text-xs text-blue-400 font-mono">{currentVal}</span>
                         </div>
+                        <p className="text-[10px] text-gray-600 mb-1">{range.description}</p>
                         <input
                           type="range"
                           min={range.min}
@@ -106,6 +107,7 @@ export default function ParamTuner({ signals, onSignalsChange }: ParamTunerProps
                         />
                         <div className="flex justify-between text-[10px] text-gray-600 mt-0.5">
                           <span>{range.min}</span>
+                          <span className="text-gray-700">기본: {range.default}</span>
                           <span>{range.max}</span>
                         </div>
                       </div>

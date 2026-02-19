@@ -45,7 +45,7 @@ describe("RecipeCard", () => {
     expect(screen.getByText("보수적 매매 전략")).toBeInTheDocument();
   });
 
-  it("shows signal count and combinator badges", () => {
+  it("shows signal name badges with combinator", () => {
     render(
       <RecipeCard
         recipe={mockRecipe}
@@ -55,7 +55,8 @@ describe("RecipeCard", () => {
       />
     );
 
-    expect(screen.getByText("2개 시그널")).toBeInTheDocument();
+    expect(screen.getByText("MACD 크로스")).toBeInTheDocument();
+    expect(screen.getByText("RSI 평균회귀")).toBeInTheDocument();
     expect(screen.getByText("AND")).toBeInTheDocument();
   });
 

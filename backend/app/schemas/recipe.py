@@ -25,6 +25,7 @@ class RecipeCreate(BaseModel):
     custom_filters: dict = {}
     stock_codes: list[str] = []
     risk_config: dict = {}
+    auto_execute: bool = False
 
 
 class RecipeUpdate(BaseModel):
@@ -34,6 +35,7 @@ class RecipeUpdate(BaseModel):
     custom_filters: dict | None = None
     stock_codes: list[str] | None = None
     risk_config: dict | None = None
+    auto_execute: bool | None = None
 
 
 class RecipeResponse(BaseModel):
@@ -46,6 +48,7 @@ class RecipeResponse(BaseModel):
     risk_config: dict
     is_active: bool
     is_template: bool
+    auto_execute: bool
     created_at: datetime
     updated_at: datetime
 

@@ -21,6 +21,7 @@ export interface Recipe {
   risk_config: Record<string, number>;
   is_active: boolean;
   is_template: boolean;
+  auto_execute: boolean;
   created_at: string;
   updated_at: string;
 }

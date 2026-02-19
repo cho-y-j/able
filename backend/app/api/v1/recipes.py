@@ -32,6 +32,7 @@ def _recipe_to_response(r: TradingRecipe) -> RecipeResponse:
         risk_config=r.risk_config,
         is_active=r.is_active,
         is_template=r.is_template,
+        auto_execute=r.auto_execute,
         created_at=r.created_at,
         updated_at=r.updated_at,
     )
@@ -65,6 +66,7 @@ async def create_recipe(
         custom_filters=req.custom_filters,
         stock_codes=req.stock_codes,
         risk_config=req.risk_config,
+        auto_execute=req.auto_execute,
     )
     db.add(recipe)
     await db.flush()
@@ -249,6 +251,7 @@ async def activate_recipe(
         )
 
     recipe.is_active = True
+    recipe.auto_execute = True
     await db.flush()
     await db.refresh(recipe)
 
@@ -280,6 +283,7 @@ async def deactivate_recipe(
         raise HTTPException(status_code=404, detail="Recipe not found")
 
     recipe.is_active = False
+    recipe.auto_execute = False
     await db.flush()
     await db.refresh(recipe)
 

@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  SIGNAL_INFO,
+  CATEGORY_COLORS,
+  getSignalLabel,
+} from "@/lib/signalMetadata";
 import type { Recipe } from "../types";
 
 interface RecipeCardProps {
@@ -9,9 +14,21 @@ interface RecipeCardProps {
   onDelete: (e: React.MouseEvent) => void;
 }
 
+function CombinatorBadge({ combinator, minAgree }: { combinator: string; minAgree?: number }) {
+  const label =
+    combinator === "AND" ? "AND" : combinator === "OR" ? "OR" : `${minAgree || 2}+`;
+  return (
+    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-600 text-gray-300">
+      {label}
+    </span>
+  );
+}
+
 export default function RecipeCard({ recipe, onClick, onActivate, onDelete }: RecipeCardProps) {
-  const signalCount = recipe.signal_config?.signals?.length || 0;
+  const signals = recipe.signal_config?.signals || [];
   const combinator = recipe.signal_config?.combinator || "AND";
+  const minAgree = recipe.signal_config?.min_agree;
+  const risk = recipe.risk_config;
 
   return (
     <div
@@ -31,10 +48,18 @@ export default function RecipeCard({ recipe, onClick, onActivate, onDelete }: Re
           )}
         </div>
         <div className="flex items-center gap-2 ml-3 flex-shrink-0">
-          {recipe.is_active && (
-            <span className="relative flex h-3 w-3" aria-label="활성 상태">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500" />
+          {recipe.is_active && recipe.auto_execute && (
+            <span className="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+              </span>
+              자동매매
+            </span>
+          )}
+          {recipe.is_active && !recipe.auto_execute && (
+            <span className="bg-blue-500/20 text-blue-400 text-xs px-2 py-0.5 rounded-full">
+              모니터링
             </span>
           )}
           {recipe.is_template && (
@@ -45,13 +70,32 @@ export default function RecipeCard({ recipe, onClick, onActivate, onDelete }: Re
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 mb-3">
-        <span className="bg-blue-500/20 text-blue-400 text-xs px-2.5 py-1 rounded-full">
-          {signalCount}개 시그널
-        </span>
-        <span className="bg-gray-700 text-gray-300 text-xs px-2.5 py-1 rounded-full">
-          {combinator}
-        </span>
+      {/* Signal badges with combinator separators */}
+      <div className="flex flex-wrap items-center gap-1.5 mb-3">
+        {signals.map((sig, i) => {
+          const name = sig.strategy_type || sig.type;
+          const info = SIGNAL_INFO[name];
+          const catColor = info
+            ? (CATEGORY_COLORS[info.category] || "bg-gray-700 text-gray-400")
+            : "bg-gray-700 text-gray-400";
+          return (
+            <span key={i} className="contents">
+              {i > 0 && (
+                <CombinatorBadge combinator={combinator} minAgree={minAgree} />
+              )}
+              <span className={`text-xs px-2 py-0.5 rounded-full border ${catColor}`}>
+                {getSignalLabel(name)}
+              </span>
+            </span>
+          );
+        })}
+        {signals.length === 0 && (
+          <span className="text-xs text-gray-500">시그널 없음</span>
+        )}
+      </div>
+
+      {/* Stock codes + risk summary row */}
+      <div className="flex flex-wrap items-center gap-2 mb-3">
         {recipe.stock_codes?.slice(0, 3).map((code) => (
           <span key={code} className="bg-gray-700 text-gray-400 text-xs px-2.5 py-1 rounded-full">
             {code}
@@ -60,6 +104,13 @@ export default function RecipeCard({ recipe, onClick, onActivate, onDelete }: Re
         {(recipe.stock_codes?.length || 0) > 3 && (
           <span className="text-gray-500 text-xs py-1">
             +{recipe.stock_codes.length - 3}
+          </span>
+        )}
+        {risk && (risk.stop_loss || risk.take_profit) && (
+          <span className="text-xs text-gray-500 ml-auto">
+            {risk.stop_loss ? `손절 ${risk.stop_loss}%` : ""}
+            {risk.stop_loss && risk.take_profit ? " / " : ""}
+            {risk.take_profit ? `익절 ${risk.take_profit}%` : ""}
           </span>
         )}
       </div>

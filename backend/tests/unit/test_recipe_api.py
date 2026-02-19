@@ -115,6 +115,7 @@ def _make_recipe(
     r.risk_config = {"stop_loss": 3, "take_profit": 5, "position_size": 0.1}
     r.is_active = is_active
     r.is_template = is_template
+    r.auto_execute = False
     r.created_at = datetime.now(timezone.utc)
     r.updated_at = datetime.now(timezone.utc)
     return r
@@ -204,6 +205,7 @@ class TestCreateRecipe:
             obj.risk_config = req.risk_config
             obj.is_active = False
             obj.is_template = False
+            obj.auto_execute = False
             obj.created_at = datetime.now(timezone.utc)
             obj.updated_at = datetime.now(timezone.utc)
 
@@ -463,6 +465,7 @@ class TestCloneRecipe:
             obj.risk_config = source.risk_config
             obj.is_active = False
             obj.is_template = False
+            obj.auto_execute = False
             obj.created_at = datetime.now(timezone.utc)
             obj.updated_at = datetime.now(timezone.utc)
 

@@ -138,14 +138,15 @@ describe("RecipesPage", () => {
     expect(mockPush).toHaveBeenCalledWith("/dashboard/recipes/r1");
   });
 
-  it("shows signal count badges on cards", async () => {
+  it("shows signal name badges on cards", async () => {
     await act(async () => {
       render(<RecipesPage />);
     });
 
     await waitFor(() => {
-      expect(screen.getByText("2개 시그널")).toBeInTheDocument();
-      expect(screen.getByText("1개 시그널")).toBeInTheDocument();
+      expect(screen.getByText("MACD 크로스")).toBeInTheDocument();
+      expect(screen.getByText("RSI 평균회귀")).toBeInTheDocument();
+      expect(screen.getByText("거래량 폭증 (RVOL)")).toBeInTheDocument();
     });
   });
 

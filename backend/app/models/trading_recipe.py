@@ -32,5 +32,6 @@ class TradingRecipe(Base, UUIDMixin, TimestampMixin):
     # Status
     is_active: Mapped[bool] = mapped_column(Boolean, default=False)
     is_template: Mapped[bool] = mapped_column(Boolean, default=False)
+    auto_execute: Mapped[bool] = mapped_column(Boolean, default=False)
 
     user = relationship("User", back_populates="recipes")

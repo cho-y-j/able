@@ -4,6 +4,10 @@ import RecipeBuilderPage from "@/app/dashboard/recipes/[id]/page";
 import api from "@/lib/api";
 
 jest.mock("@/lib/api");
+jest.mock("@/lib/useStockSearch", () => ({
+  useStockSearch: () => ({ results: [], loading: false }),
+  __esModule: true,
+}));
 const mockedApi = api as jest.Mocked<typeof api>;
 
 const mockPush = jest.fn();
@@ -76,7 +80,7 @@ describe("RecipeBuilderPage", () => {
     const paramStep = stepButtons.find((b) => b.textContent?.includes("파라미터 조정"));
     expect(paramStep).toBeTruthy();
     await user.click(paramStep!);
-    expect(screen.getByText("선택된 시그널이 없습니다")).toBeInTheDocument();
+    expect(screen.getByText(/선택된 시그널이 없습니다/)).toBeInTheDocument();
 
     // Click step 3
     const filterStep = stepButtons.find((b) => b.textContent?.includes("필터 + 종목"));

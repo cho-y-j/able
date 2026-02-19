@@ -81,6 +81,8 @@ def make_mock_db(execute_side_effects=None):
                 obj.is_active = False
             if obj.is_template is None:
                 obj.is_template = False
+            if getattr(obj, 'auto_execute', None) is None:
+                obj.auto_execute = False
             if obj.created_at is None:
                 obj.created_at = datetime.now(timezone.utc)
             if obj.updated_at is None:
@@ -102,6 +104,7 @@ def _make_recipe(user_id, name="Test Recipe", recipe_id=None, is_active=False):
     r.risk_config = {"stop_loss_pct": 3}
     r.is_active = is_active
     r.is_template = False
+    r.auto_execute = False
     r.created_at = datetime.now(timezone.utc)
     r.updated_at = datetime.now(timezone.utc)
     return r

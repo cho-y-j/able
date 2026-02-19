@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import api from "@/lib/api";
+import { SIGNAL_INFO, CATEGORY_COLORS, getSignalLabel } from "@/lib/signalMetadata";
 import SignalSelector from "./_components/SignalSelector";
 import ParamTuner from "./_components/ParamTuner";
 import FilterBuilder from "./_components/FilterBuilder";
@@ -45,6 +46,13 @@ export default function RecipeBuilderPage() {
   const [isActive, setIsActive] = useState(false);
   const [loading, setLoading] = useState(!!recipeId);
   const [alert, setAlert] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [strategySource, setStrategySource] = useState<{
+    name: string;
+    strategy_type: string;
+    stock_name?: string;
+    stock_code: string;
+    composite_score?: number;
+  } | null>(null);
 
   useEffect(() => {
     if (recipeId) {
@@ -72,6 +80,13 @@ export default function RecipeBuilderPage() {
           position_size: data.risk_params.position_size ?? 10,
         });
       }
+      setStrategySource({
+        name: data.name,
+        strategy_type: data.strategy_type,
+        stock_name: data.stock_name,
+        stock_code: data.stock_code,
+        composite_score: data.composite_score,
+      });
     } catch {
       setAlert({ type: "error", message: "전략 정보를 불러오지 못했습니다" });
     }
@@ -170,6 +185,49 @@ export default function RecipeBuilderPage() {
           }`}
         >
           {alert.message}
+        </div>
+      )}
+
+      {/* Strategy source banner */}
+      {strategySource && (
+        <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg px-4 py-3 flex items-center gap-3">
+          <div className="text-blue-400 text-sm font-medium shrink-0">전략 기반</div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {(() => {
+              const info = SIGNAL_INFO[strategySource.strategy_type];
+              const catColor = info ? (CATEGORY_COLORS[info.category] || "") : "";
+              return (
+                <>
+                  <span className="text-sm text-white font-medium">
+                    {info?.label || strategySource.strategy_type}
+                  </span>
+                  {info && (
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded border ${catColor}`}>
+                      {info.category}
+                    </span>
+                  )}
+                </>
+              );
+            })()}
+            <span className="text-xs text-gray-400">
+              {strategySource.stock_name
+                ? `${strategySource.stock_name} (${strategySource.stock_code})`
+                : strategySource.stock_code}
+            </span>
+            {strategySource.composite_score != null && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-blue-900/40 text-blue-400">
+                종합 {strategySource.composite_score.toFixed(1)}점
+              </span>
+            )}
+          </div>
+          {(() => {
+            const info = SIGNAL_INFO[strategySource.strategy_type];
+            return info ? (
+              <p className="text-xs text-gray-500 ml-auto hidden md:block max-w-xs truncate">
+                {info.description}
+              </p>
+            ) : null;
+          })()}
         </div>
       )}
 

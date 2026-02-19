@@ -358,6 +358,7 @@ def monitor_active_recipes():
     Fetches OHLCV data (Yahoo Finance), runs SignalComposer,
     and caches entry/exit signals to Redis.
     """
+    import asyncio
     import json
     import redis
     from datetime import datetime as dt, timedelta
@@ -384,6 +385,7 @@ def monitor_active_recipes():
         evaluated = 0
         signals_found = 0
         notifications_sent = 0
+        auto_executed = 0
 
         for recipe in recipes:
             stock_codes = recipe.stock_codes or []
@@ -442,12 +444,71 @@ def monitor_active_recipes():
                             db, recipe, stock_code, signal_type,
                         )
 
+                        # Auto-execute if enabled
+                        if recipe.auto_execute:
+                            from app.models.order import Order
+                            cutoff = datetime.now(timezone.utc) - timedelta(minutes=5)
+                            existing = db.query(Order).filter(
+                                Order.recipe_id == recipe.id,
+                                Order.stock_code == stock_code,
+                                Order.submitted_at >= cutoff,
+                            ).first()
+
+                            if existing:
+                                logger.info(
+                                    f"Skip auto-exec: duplicate order for recipe='{recipe.name}' "
+                                    f"stock={stock_code} within 5 min"
+                                )
+                            else:
+                                try:
+                                    from app.db.session import async_session_factory
+                                    from app.services.recipe_executor import RecipeExecutor
+
+                                    async def _auto_exec():
+                                        async with async_session_factory() as async_db:
+                                            executor = RecipeExecutor()
+                                            return await executor.execute(
+                                                user_id=str(recipe.user_id),
+                                                recipe=recipe,
+                                                db=async_db,
+                                                stock_code=stock_code,
+                                            )
+
+                                    exec_results = asyncio.run(_auto_exec())
+                                    for er in (exec_results or []):
+                                        if er.get("status") == "submitted":
+                                            auto_executed += 1
+                                            logger.info(
+                                                f"Auto-executed: recipe='{recipe.name}' "
+                                                f"stock={stock_code} side={er.get('side')} "
+                                                f"qty={er.get('quantity')} "
+                                                f"kis_order={er.get('kis_order_id')}"
+                                            )
+                                        else:
+                                            logger.warning(
+                                                f"Auto-exec result: recipe='{recipe.name}' "
+                                                f"stock={stock_code} status={er.get('status')} "
+                                                f"error={er.get('error')}"
+                                            )
+                                except Exception as e:
+                                    logger.error(
+                                        f"Auto-execute failed: recipe='{recipe.name}' "
+                                        f"stock={stock_code}: {e}",
+                                        exc_info=True,
+                                    )
+
                 except Exception as e:
                     logger.warning(f"Evaluation failed for recipe '{recipe.name}' stock={stock_code}: {e}")
                     continue
 
-        logger.info(f"Recipe monitoring: evaluated={evaluated}, signals={signals_found}, notifications={notifications_sent}")
-        return {"status": "ok", "evaluated": evaluated, "signals": signals_found, "notifications": notifications_sent}
+        logger.info(
+            f"Recipe monitoring: evaluated={evaluated}, signals={signals_found}, "
+            f"notifications={notifications_sent}, auto_executed={auto_executed}"
+        )
+        return {
+            "status": "ok", "evaluated": evaluated, "signals": signals_found,
+            "notifications": notifications_sent, "auto_executed": auto_executed,
+        }
 
     except Exception as e:
         logger.error(f"Recipe monitoring failed: {e}", exc_info=True)

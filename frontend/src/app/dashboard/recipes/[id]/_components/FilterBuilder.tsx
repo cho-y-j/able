@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { StockAutocomplete } from "@/components/StockAutocomplete";
+import type { StockResult } from "@/lib/useStockSearch";
 
 interface FilterBuilderProps {
   customFilters: Record<string, unknown>;
@@ -15,7 +17,9 @@ export default function FilterBuilder({
   onFiltersChange,
   onStockCodesChange,
 }: FilterBuilderProps) {
-  const [newStockCode, setNewStockCode] = useState("");
+  const [stockInput, setStockInput] = useState("");
+  // Store display names for stock codes
+  const [stockNames, setStockNames] = useState<Record<string, string>>({});
 
   const toggleFilter = (key: string, defaultValue: unknown) => {
     if (key in customFilters) {
@@ -31,12 +35,12 @@ export default function FilterBuilder({
     onFiltersChange({ ...customFilters, [key]: value });
   };
 
-  const addStockCode = () => {
-    const code = newStockCode.trim();
-    if (code && !stockCodes.includes(code)) {
-      onStockCodesChange([...stockCodes, code]);
-      setNewStockCode("");
+  const addStock = (stock: StockResult) => {
+    if (!stockCodes.includes(stock.code)) {
+      onStockCodesChange([...stockCodes, stock.code]);
+      setStockNames((prev) => ({ ...prev, [stock.code]: stock.name }));
     }
+    setStockInput("");
   };
 
   const removeStockCode = (code: string) => {
@@ -119,22 +123,13 @@ export default function FilterBuilder({
       <div className="space-y-3">
         <h4 className="text-sm font-medium text-gray-300">대상 종목</h4>
 
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={newStockCode}
-            onChange={(e) => setNewStockCode(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && addStockCode()}
-            placeholder="종목코드 (예: 005930)"
-            className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:border-blue-500 focus:outline-none"
-          />
-          <button
-            onClick={addStockCode}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm transition-colors"
-          >
-            추가
-          </button>
-        </div>
+        <StockAutocomplete
+          value={stockInput}
+          onChange={setStockInput}
+          onSelect={addStock}
+          placeholder="종목코드 또는 종목명으로 검색"
+          className="!py-2.5"
+        />
 
         {stockCodes.length > 0 ? (
           <div className="flex flex-wrap gap-2">
@@ -143,10 +138,17 @@ export default function FilterBuilder({
                 key={code}
                 className="inline-flex items-center gap-1.5 bg-gray-800 border border-gray-700 rounded-full px-3 py-1.5 text-sm text-gray-300"
               >
-                {code}
+                {stockNames[code] ? (
+                  <>
+                    <span className="text-white">{stockNames[code]}</span>
+                    <span className="text-gray-500">{code}</span>
+                  </>
+                ) : (
+                  code
+                )}
                 <button
                   onClick={() => removeStockCode(code)}
-                  className="text-gray-500 hover:text-red-400 transition-colors"
+                  className="text-gray-500 hover:text-red-400 transition-colors ml-0.5"
                 >
                   x
                 </button>
