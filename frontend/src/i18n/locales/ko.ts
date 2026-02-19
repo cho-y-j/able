@@ -38,6 +38,7 @@ const ko: Translations = {
     backtests: "백테스트",
     trading: "거래",
     autoTrading: "자동거래",
+    rankings: "실시간 순위",
     paper: "모의투자",
     portfolio: "포트폴리오",
     risk: "리스크",
@@ -507,6 +508,22 @@ const ko: Translations = {
     runCompare: "비교 실행",
     ranking: "순위",
     noRecipes: "레시피가 없습니다",
+  },
+
+  rankings: {
+    title: "실시간 순위",
+    priceRanking: "상승/하락률",
+    volumeRanking: "거래량",
+    themeClassification: "테마",
+    interestStocks: "관심종목",
+    gainers: "상승",
+    losers: "하락",
+    changePct: "등락률",
+    volume: "거래량",
+    stockCount: "개 종목",
+    noData: "순위 데이터가 없습니다",
+    noThemes: "테마 데이터가 없습니다",
+    noInterest: "현재 관심종목이 없습니다",
   },
 
   theme: {

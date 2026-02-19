@@ -36,6 +36,7 @@ const en = {
     backtests: "Backtests",
     trading: "Trading",
     autoTrading: "Auto Trading",
+    rankings: "Rankings",
     paper: "Paper Trading",
     portfolio: "Portfolio",
     risk: "Risk",
@@ -505,6 +506,22 @@ const en = {
     runCompare: "Run Comparison",
     ranking: "Ranking",
     noRecipes: "No recipes available",
+  },
+
+  rankings: {
+    title: "Market Rankings",
+    priceRanking: "Price Change",
+    volumeRanking: "Volume",
+    themeClassification: "Themes",
+    interestStocks: "Interest Stocks",
+    gainers: "Gainers",
+    losers: "Losers",
+    changePct: "Change %",
+    volume: "Volume",
+    stockCount: " stocks",
+    noData: "No ranking data available",
+    noThemes: "No theme data available",
+    noInterest: "No interest stocks at this time",
   },
 
   theme: {

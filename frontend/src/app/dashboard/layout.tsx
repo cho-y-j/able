@@ -17,6 +17,7 @@ const navKeys = [
   { href: "/dashboard/backtests", key: "backtests" as const, icon: "B" },
   { href: "/dashboard/trading", key: "trading" as const, icon: "T" },
   { href: "/dashboard/auto-trading", key: "autoTrading" as const, icon: "Z" },
+  { href: "/dashboard/rankings", key: "rankings" as const, icon: "K" },
   { href: "/dashboard/paper", key: "paper" as const, icon: "R" },
   { href: "/dashboard/portfolio", key: "portfolio" as const, icon: "P" },
   { href: "/dashboard/risk", key: "risk" as const, icon: "V" },
