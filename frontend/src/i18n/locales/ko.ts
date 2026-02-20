@@ -495,6 +495,8 @@ const ko: Translations = {
     allRecipes: "전체 레시피",
     allStatuses: "전체 상태",
     time: "시간",
+    inactive: "비활성",
+    submitted: "제출됨",
   },
 
   recipes: {

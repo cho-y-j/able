@@ -493,6 +493,8 @@ const en = {
     allRecipes: "All Recipes",
     allStatuses: "All Statuses",
     time: "Time",
+    inactive: "Inactive",
+    submitted: "Submitted",
   },
 
   recipes: {

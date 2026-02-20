@@ -331,7 +331,7 @@ export function StrategySearchPanel({
                             const info = STRATEGY_TYPE_INFO[sType] || STRATEGY_TYPE_INFO[s.name.split("_")[0]];
                             return info ? (
                               <span className={`text-xs px-1 py-0.5 rounded ${
-                                { "추세추종": "bg-blue-500/20 text-blue-300", "모멘텀": "bg-purple-500/20 text-purple-300", "변동성": "bg-orange-500/20 text-orange-300", "복합": "bg-emerald-500/20 text-emerald-300" }[info.category] || "bg-gray-700 text-gray-400"
+                                ({ "추세추종": "bg-blue-500/20 text-blue-300", "모멘텀": "bg-purple-500/20 text-purple-300", "변동성": "bg-orange-500/20 text-orange-300", "거래량": "bg-cyan-500/20 text-cyan-300", "복합": "bg-emerald-500/20 text-emerald-300" } as Record<string, string>)[info.category] || "bg-gray-700 text-gray-400"
                               }`}>{info.category}</span>
                             ) : null;
                           })()}

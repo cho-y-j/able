@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import api from "@/lib/api";
@@ -57,7 +57,8 @@ interface StockInfo {
 export default function AutoTradingPage() {
   const { t } = useI18n();
   const router = useRouter();
-  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [activeRecipes, setActiveRecipes] = useState<Recipe[]>([]);
+  const [allRecipes, setAllRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
   const [ordersMap, setOrdersMap] = useState<Record<string, RecipeOrder[]>>({});
   const [stockNames, setStockNames] = useState<Record<string, string>>({});
@@ -70,6 +71,10 @@ export default function AutoTradingPage() {
   const [selectedRecipeId, setSelectedRecipeId] = useState<string>("");
   const [executing, setExecuting] = useState(false);
   const [alert, setAlert] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  // Highlight a card after execution
+  const [highlightedRecipeId, setHighlightedRecipeId] = useState<string | null>(null);
+  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   // Activity feed
   const [activityOrders, setActivityOrders] = useState<ActivityOrder[]>([]);
@@ -90,19 +95,22 @@ export default function AutoTradingPage() {
   const fetchRecipes = useCallback(async () => {
     try {
       const { data } = await api.get("/recipes");
-      const active = (data as Recipe[]).filter((r) => r.is_active);
-      // Deduplicate by id (API may return duplicates)
+      const all = data as Recipe[];
+      // Deduplicate by id
       const seen = new Set<string>();
-      const unique = active.filter((r) => {
+      const unique = all.filter((r) => {
         if (seen.has(r.id)) return false;
         seen.add(r.id);
         return true;
       });
-      setRecipes(unique);
-      return unique;
+      setAllRecipes(unique);
+      const active = unique.filter((r) => r.is_active);
+      setActiveRecipes(active);
+      return { all: unique, active };
     } catch {
-      setRecipes([]);
-      return [];
+      setAllRecipes([]);
+      setActiveRecipes([]);
+      return { all: [], active: [] };
     } finally {
       setLoading(false);
     }
@@ -110,7 +118,7 @@ export default function AutoTradingPage() {
 
   const fetchOrders = useCallback(async (recipeId: string) => {
     try {
-      const { data } = await api.get(`/recipes/${recipeId}/orders?limit=5`);
+      const { data } = await api.get(`/recipes/${recipeId}/orders?limit=10`);
       setOrdersMap((prev) => ({ ...prev, [recipeId]: data }));
     } catch { /* ignore */ }
   }, []);
@@ -122,27 +130,49 @@ export default function AutoTradingPage() {
     } catch { /* ignore */ }
   }, []);
 
+  const fetchActivityFeed = useCallback(async () => {
+    try {
+      const { data } = await api.get("/recipes/activity-feed?limit=50");
+      setActivityOrders(data as ActivityOrder[]);
+    } catch { /* ignore */ }
+  }, []);
+
   useEffect(() => {
     fetchBalance();
-    fetchRecipes().then((active) => {
+    fetchRecipes().then(({ all, active }) => {
       active.forEach((r) => fetchOrders(r.id));
       const allCodes = new Set<string>();
       active.forEach((r) => r.stock_codes?.forEach((c) => allCodes.add(c)));
       fetchStockNames(Array.from(allCodes));
-      if (active.length > 0) setSelectedRecipeId(active[0].id);
-      // Fetch activity feed
-      api.get("/recipes/activity-feed?limit=50").then(({ data }) => {
-        setActivityOrders(data as ActivityOrder[]);
-      }).catch(() => {});
+      if (all.length > 0) setSelectedRecipeId(all[0].id);
+      fetchActivityFeed();
     });
-  }, [fetchRecipes, fetchOrders, fetchStockNames, fetchBalance]);
+  }, [fetchRecipes, fetchOrders, fetchStockNames, fetchBalance, fetchActivityFeed]);
 
   useEffect(() => {
     if (alert) {
-      const timer = setTimeout(() => setAlert(null), 4000);
+      const timer = setTimeout(() => setAlert(null), 5000);
       return () => clearTimeout(timer);
     }
   }, [alert]);
+
+  // Auto-clear highlight after 3 seconds
+  useEffect(() => {
+    if (highlightedRecipeId) {
+      const timer = setTimeout(() => setHighlightedRecipeId(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [highlightedRecipeId]);
+
+  // Scroll to highlighted card when it appears
+  useEffect(() => {
+    if (highlightedRecipeId) {
+      setTimeout(() => {
+        const el = cardRefs.current[highlightedRecipeId];
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 200);
+    }
+  }, [highlightedRecipeId, activeRecipes]);
 
   // WebSocket
   const handlePriceUpdate = useCallback((data: PriceUpdateEvent) => {
@@ -154,15 +184,12 @@ export default function AutoTradingPage() {
 
   const handleOrderUpdate = useCallback(
     (data: OrderUpdateEvent) => {
-      if (recipes.some((r) => r.id === data.recipe_id)) {
+      if (activeRecipes.some((r) => r.id === data.recipe_id)) {
         fetchOrders(data.recipe_id);
       }
-      // Refresh activity feed
-      api.get("/recipes/activity-feed?limit=50").then(({ data: feedData }) => {
-        setActivityOrders(feedData as ActivityOrder[]);
-      }).catch(() => {});
+      fetchActivityFeed();
     },
-    [recipes, fetchOrders]
+    [activeRecipes, fetchOrders, fetchActivityFeed]
   );
 
   useTradingWebSocket({
@@ -170,7 +197,8 @@ export default function AutoTradingPage() {
     onOrderUpdate: handleOrderUpdate,
   });
 
-  // Actions
+  // ── Actions ──
+
   const handlePause = async (recipeId: string) => {
     try {
       await api.post(`/recipes/${recipeId}/deactivate`);
@@ -184,9 +212,16 @@ export default function AutoTradingPage() {
   const handleExecuteNow = async (recipeId: string) => {
     setExecuting(true);
     try {
-      await api.post(`/recipes/${recipeId}/execute`);
-      setAlert({ type: "success", message: t.autoTrading.executeSuccess });
+      const { data } = await api.post(`/recipes/${recipeId}/execute`);
+      const submitted = data.total_submitted ?? 0;
+      const failed = data.total_failed ?? 0;
+      setAlert({
+        type: failed > 0 ? "error" : "success",
+        message: `${t.autoTrading.executeSuccess} (${t.autoTrading.submitted}: ${submitted}, ${t.autoTrading.failedOrders}: ${failed})`,
+      });
       fetchOrders(recipeId);
+      fetchActivityFeed();
+      setHighlightedRecipeId(recipeId);
     } catch {
       setAlert({ type: "error", message: t.autoTrading.executeFailed });
     } finally {
@@ -199,11 +234,52 @@ export default function AutoTradingPage() {
     if (!confirm(t.autoTrading.executeConfirm)) return;
     setExecuting(true);
     try {
-      await api.post(`/recipes/${selectedRecipeId}/execute`, {
+      // 1) Execute the recipe for this stock
+      const { data } = await api.post(`/recipes/${selectedRecipeId}/execute`, {
         stock_code: selectedStock.code,
       });
-      setAlert({ type: "success", message: t.autoTrading.executeSuccess });
+
+      const recipe = allRecipes.find((r) => r.id === selectedRecipeId);
+
+      // 2) Add stock to recipe if not already included
+      if (recipe && !recipe.stock_codes.includes(selectedStock.code)) {
+        try {
+          await api.put(`/recipes/${selectedRecipeId}`, {
+            stock_codes: [...recipe.stock_codes, selectedStock.code],
+          });
+        } catch { /* best effort */ }
+      }
+
+      // 3) Activate recipe if not already active
+      if (recipe && !recipe.is_active) {
+        try {
+          await api.post(`/recipes/${selectedRecipeId}/activate`);
+        } catch { /* best effort */ }
+      }
+
+      // 4) Register stock name
+      if (selectedStock.name && selectedStock.name !== selectedStock.code) {
+        setStockNames((prev) => ({ ...prev, [selectedStock.code]: selectedStock.name }));
+      }
+
+      // 5) Refresh everything
+      await fetchRecipes();
       fetchOrders(selectedRecipeId);
+      fetchActivityFeed();
+      fetchBalance();
+
+      // 6) Show result + highlight the card
+      const submitted = data.total_submitted ?? 0;
+      const failed = data.total_failed ?? 0;
+      setAlert({
+        type: failed > 0 ? "error" : "success",
+        message: `${selectedStock.name} - ${t.autoTrading.executeSuccess} (${t.autoTrading.submitted}: ${submitted}, ${t.autoTrading.failedOrders}: ${failed})`,
+      });
+      setHighlightedRecipeId(selectedRecipeId);
+
+      // 7) Clear stock selection
+      setSelectedStock(null);
+      setSearchInput("");
     } catch {
       setAlert({ type: "error", message: t.autoTrading.executeFailed });
     } finally {
@@ -212,7 +288,7 @@ export default function AutoTradingPage() {
   };
 
   // Stats
-  const totalStocks = new Set(recipes.flatMap((r) => r.stock_codes || [])).size;
+  const totalStocks = new Set(activeRecipes.flatMap((r) => r.stock_codes || [])).size;
   const allOrders = Object.values(ordersMap).flat();
   const todayOrders = allOrders.filter((o) => {
     const d = new Date(o.created_at);
@@ -251,7 +327,7 @@ export default function AutoTradingPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-white">{t.autoTrading.title}</h1>
         <button
-          onClick={() => { fetchRecipes(); fetchBalance(); }}
+          onClick={() => { fetchRecipes(); fetchBalance(); fetchActivityFeed(); }}
           className="text-sm text-gray-400 hover:text-white transition-colors"
         >
           {t.autoTrading.refresh}
@@ -262,7 +338,7 @@ export default function AutoTradingPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <SummaryCard
           label={t.autoTrading.activeRecipes}
-          value={`${recipes.length}개`}
+          value={`${activeRecipes.length}개`}
           color="text-green-400"
         />
         <SummaryCard
@@ -283,8 +359,61 @@ export default function AutoTradingPage() {
         />
       </div>
 
-      {/* Active Recipes or Empty State */}
-      {recipes.length === 0 ? (
+      {/* Stock Search + Recipe Execution — moved above cards */}
+      <div className="bg-gray-800 border border-gray-700 rounded-xl p-5">
+        <h3 className="text-sm font-semibold text-white mb-3">{t.autoTrading.searchStock}</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div>
+            <StockAutocomplete
+              value={searchInput}
+              onChange={setSearchInput}
+              onSelect={(code, name) => { setSelectedStock({ code, name: name || code, market: "", sector: "" }); setSearchInput(""); }}
+              placeholder="종목코드 또는 종목명"
+              className="!py-2.5"
+            />
+            {selectedStock && (
+              <div className="mt-2 bg-gray-900 rounded-lg px-3 py-2 flex items-center justify-between">
+                <div>
+                  <span className="text-sm text-white font-medium">{selectedStock.name}</span>
+                  <span className="text-xs text-gray-500 font-mono ml-2">{selectedStock.code}</span>
+                </div>
+                <button
+                  onClick={() => setSelectedStock(null)}
+                  className="text-gray-500 hover:text-red-400 text-xs"
+                >
+                  &times;
+                </button>
+              </div>
+            )}
+          </div>
+          <div>
+            <select
+              value={selectedRecipeId}
+              onChange={(e) => setSelectedRecipeId(e.target.value)}
+              className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white focus:border-blue-500 focus:outline-none"
+            >
+              <option value="">{t.autoTrading.selectRecipe}</option>
+              {allRecipes.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name} {r.is_active ? "" : `(${t.autoTrading.inactive})`}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <button
+              onClick={handleStockExecute}
+              disabled={!selectedStock || !selectedRecipeId || executing}
+              className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:text-gray-500 text-white py-2.5 rounded-lg text-sm font-medium transition-colors"
+            >
+              {executing ? t.autoTrading.executing : t.autoTrading.execute}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Active Recipes Grid */}
+      {activeRecipes.length === 0 ? (
         <div className="text-center py-16 bg-gray-800/50 rounded-xl border border-gray-700 border-dashed">
           <p className="text-gray-400 text-lg mb-2">{t.autoTrading.noActiveRecipes}</p>
           <p className="text-gray-500 text-sm mb-6">{t.autoTrading.noActiveDesc}</p>
@@ -297,13 +426,22 @@ export default function AutoTradingPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {recipes.map((recipe) => {
+          {activeRecipes.map((recipe) => {
             const orders = ordersMap[recipe.id] || [];
             const successCount = orders.filter((o) => o.status === "submitted" || o.status === "filled").length;
             const failCount = orders.filter((o) => o.status === "failed").length;
+            const isHighlighted = highlightedRecipeId === recipe.id;
 
             return (
-              <div key={recipe.id} className="bg-gray-800 border border-gray-700 rounded-xl p-5 hover:border-green-500/50 transition-colors">
+              <div
+                key={recipe.id}
+                ref={(el) => { cardRefs.current[recipe.id] = el; }}
+                className={`bg-gray-800 border rounded-xl p-5 transition-all duration-500 ${
+                  isHighlighted
+                    ? "border-green-400 ring-2 ring-green-400/30 shadow-lg shadow-green-500/10"
+                    : "border-gray-700 hover:border-green-500/50"
+                }`}
+              >
                 {/* Recipe Header */}
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2 min-w-0">
@@ -365,6 +503,32 @@ export default function AutoTradingPage() {
                   </div>
                 </div>
 
+                {/* Recent orders preview */}
+                {orders.length > 0 && (
+                  <div className="mb-3 space-y-1">
+                    {orders.slice(0, 3).map((o) => {
+                      const d = new Date(o.created_at);
+                      const timeStr = `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
+                      return (
+                        <div key={o.id} className="flex items-center justify-between text-xs bg-gray-900/50 rounded px-2 py-1">
+                          <span className="text-gray-500">{timeStr}</span>
+                          <span className="text-white truncate mx-1">{o.stock_name || stockNames[o.stock_code] || o.stock_code}</span>
+                          <span className={o.side === "buy" ? "text-green-400" : "text-red-400"}>
+                            {o.side === "buy" ? "BUY" : "SELL"} {o.quantity}
+                          </span>
+                          <span className={`text-[10px] px-1 rounded ${
+                            o.status === "filled" || o.status === "submitted"
+                              ? "text-green-400"
+                              : o.status === "failed" ? "text-red-400" : "text-yellow-400"
+                          }`}>
+                            {o.status}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
                 {/* Actions */}
                 <div className="flex gap-2">
                   <button
@@ -393,57 +557,6 @@ export default function AutoTradingPage() {
         </div>
       )}
 
-      {/* Stock Search + Recipe Execution */}
-      <div className="bg-gray-800 border border-gray-700 rounded-xl p-5">
-        <h3 className="text-sm font-semibold text-white mb-3">{t.autoTrading.searchStock}</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div>
-            <StockAutocomplete
-              value={searchInput}
-              onChange={setSearchInput}
-              onSelect={(code, name) => { setSelectedStock({ code, name: name || code, market: "", sector: "" }); setSearchInput(""); }}
-              placeholder="종목코드 또는 종목명"
-              className="!py-2.5"
-            />
-            {selectedStock && (
-              <div className="mt-2 bg-gray-900 rounded-lg px-3 py-2 flex items-center justify-between">
-                <div>
-                  <span className="text-sm text-white font-medium">{selectedStock.name}</span>
-                  <span className="text-xs text-gray-500 font-mono ml-2">{selectedStock.code}</span>
-                </div>
-                <button
-                  onClick={() => setSelectedStock(null)}
-                  className="text-gray-500 hover:text-red-400 text-xs"
-                >
-                  &times;
-                </button>
-              </div>
-            )}
-          </div>
-          <div>
-            <select
-              value={selectedRecipeId}
-              onChange={(e) => setSelectedRecipeId(e.target.value)}
-              className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white focus:border-blue-500 focus:outline-none"
-            >
-              <option value="">{t.autoTrading.selectRecipe}</option>
-              {recipes.map((r) => (
-                <option key={r.id} value={r.id}>{r.name}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <button
-              onClick={handleStockExecute}
-              disabled={!selectedStock || !selectedRecipeId || executing}
-              className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:text-gray-500 text-white py-2.5 rounded-lg text-sm font-medium transition-colors"
-            >
-              {executing ? t.autoTrading.executing : t.autoTrading.execute}
-            </button>
-          </div>
-        </div>
-      </div>
-
       {/* Activity Feed */}
       <div className="bg-gray-800 border border-gray-700 rounded-xl p-5">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
@@ -455,7 +568,7 @@ export default function AutoTradingPage() {
               className="bg-gray-900 border border-gray-700 rounded-lg px-2 py-1 text-xs text-gray-300"
             >
               <option value="">{t.autoTrading.allRecipes}</option>
-              {recipes.map((r) => (
+              {allRecipes.map((r) => (
                 <option key={r.id} value={r.id}>{r.name}</option>
               ))}
             </select>
