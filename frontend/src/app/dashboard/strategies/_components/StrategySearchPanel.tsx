@@ -318,7 +318,7 @@ export function StrategySearchPanel({
                   const { grade, bg } = gradeInfo(s.score);
                   return (
                     <tr
-                      key={s.id}
+                      key={`${s.id}-${i}`}
                       className="border-b border-gray-800/50 hover:bg-gray-800/30 cursor-pointer"
                       onClick={() => onNavigate(s.id)}
                     >

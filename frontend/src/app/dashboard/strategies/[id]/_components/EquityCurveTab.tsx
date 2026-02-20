@@ -49,9 +49,16 @@ export default function EquityCurveTab({
 
     const lc = await import("lightweight-charts");
 
+    // Check if DOM element is still mounted (React StrictMode cleanup race)
+    if (!chartRef.current) return;
+
     // Clean up previous chart
     if (chartInstanceRef.current) {
-      chartInstanceRef.current.remove();
+      try {
+        chartInstanceRef.current.remove();
+      } catch {
+        // Chart may already be disposed
+      }
       chartInstanceRef.current = null;
     }
 
@@ -113,15 +120,25 @@ export default function EquityCurveTab({
 
     return () => {
       resizeObserver.disconnect();
-      chart.remove();
+      try {
+        chart.remove();
+      } catch {
+        // Chart may already be disposed in StrictMode
+      }
       chartInstanceRef.current = null;
     };
   }, [equityCurve]);
 
   useEffect(() => {
+    let disposed = false;
     const cleanup = renderChart();
     return () => {
-      cleanup?.then((fn) => fn?.());
+      disposed = true;
+      cleanup?.then((fn) => {
+        if (fn) {
+          try { fn(); } catch { /* already disposed */ }
+        }
+      });
     };
   }, [renderChart]);
 
