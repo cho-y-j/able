@@ -93,9 +93,9 @@ export default function FactorsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">{t("factors.title") || "Factor Store"}</h1>
+        <h1 className="text-2xl font-bold">{t.factors?.title || "Factor Store"}</h1>
         <p className="text-sm text-gray-400 mt-1">
-          {t("factors.description") || "View technical factor snapshots per stock"}
+          {t.factors?.description || "View technical factor snapshots per stock"}
         </p>
       </div>
 

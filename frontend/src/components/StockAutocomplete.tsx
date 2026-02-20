@@ -4,9 +4,9 @@ import { useState, useRef, useEffect } from "react";
 import { useStockSearch, StockResult } from "@/lib/useStockSearch";
 
 interface StockAutocompleteProps {
-  value: string;
-  onChange: (value: string) => void;
-  onSelect: (stock: StockResult) => void;
+  value?: string;
+  onChange?: (value: string) => void;
+  onSelect: (code: string, name?: string) => void;
   placeholder?: string;
   market?: string;
   className?: string;
@@ -46,13 +46,13 @@ export function StockAutocomplete({
 
   const handleInputChange = (val: string) => {
     setSearchText(val);
-    onChange(val);
+    onChange?.(val);
   };
 
   const handleSelect = (stock: StockResult) => {
-    onChange(stock.code);
+    onChange?.(stock.code);
     setSearchText(`${stock.name} (${stock.code})`);
-    onSelect(stock);
+    onSelect(stock.code, stock.name);
     setIsOpen(false);
   };
 
@@ -60,7 +60,7 @@ export function StockAutocomplete({
     <div ref={containerRef} className="relative">
       <input
         type="text"
-        value={searchText || value}
+        value={searchText || value || ""}
         onChange={(e) => handleInputChange(e.target.value)}
         onFocus={() => results.length > 0 && setIsOpen(true)}
         placeholder={placeholder}

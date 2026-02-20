@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import DashboardPage from "@/app/dashboard/page";
 import { useAuthStore } from "@/store/auth";
 import { useTradingStore } from "@/store/trading";
@@ -96,12 +96,30 @@ describe("DashboardPage", () => {
           },
         });
       }
+      if (url.startsWith("/rankings/trending")) {
+        return Promise.resolve({
+          data: overrides?.trending ?? [
+            { rank: 1, stock_name: "삼성전자", stock_code: "005930", search_ratio: 12.5, price: 78000, change_pct: 2.63 },
+            { rank: 2, stock_name: "SK하이닉스", stock_code: "000660", search_ratio: 8.3, price: 195000, change_pct: -1.2 },
+          ],
+        });
+      }
+      if (url === "/factors/global") {
+        return Promise.resolve({
+          data: overrides?.globalFactors ?? [
+            { factor_name: "kospi_change_pct", value: 1.25 },
+            { factor_name: "nasdaq_change_pct", value: -0.8 },
+            { factor_name: "kospi_value", value: 2650 },
+          ],
+        });
+      }
       return Promise.reject(new Error("Unknown endpoint"));
     });
   }
 
   beforeEach(() => {
     jest.clearAllMocks();
+    localStorage.clear();
     setupMocks();
     setupApiMocks();
   });
@@ -202,7 +220,7 @@ describe("DashboardPage", () => {
     });
   });
 
-  // New tests for Insights Row
+  // Insights Row
 
   it("renders portfolio overview widget with treemap", async () => {
     render(<DashboardPage />);
@@ -237,8 +255,8 @@ describe("DashboardPage", () => {
     render(<DashboardPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("1")).toBeInTheDocument();
       expect(screen.getByText(/2 recipes/)).toBeInTheDocument();
+      expect(screen.getByText("Momentum Recipe")).toBeInTheDocument();
     });
   });
 
@@ -260,5 +278,229 @@ describe("DashboardPage", () => {
     await waitFor(() => {
       expect(screen.getByText("No recent agent activity.")).toBeInTheDocument();
     });
+  });
+
+  // Widget customization tests
+
+  it("renders customize button", async () => {
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("customize-btn")).toBeInTheDocument();
+      expect(screen.getByTestId("customize-btn")).toHaveTextContent("Customize");
+    });
+  });
+
+  it("opens customize panel on button click", async () => {
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("customize-btn")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("customize-btn"));
+
+    expect(screen.getByTestId("customize-panel")).toBeInTheDocument();
+    expect(screen.getByText("Customize Widgets")).toBeInTheDocument();
+    expect(screen.getByTestId("customize-btn")).toHaveTextContent("Done");
+  });
+
+  it("shows all widget toggles in customize panel", async () => {
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("customize-btn")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("customize-btn"));
+
+    expect(screen.getByTestId("toggle-summary")).toBeInTheDocument();
+    expect(screen.getByTestId("toggle-portfolio")).toBeInTheDocument();
+    expect(screen.getByTestId("toggle-recipes")).toBeInTheDocument();
+    expect(screen.getByTestId("toggle-activity")).toBeInTheDocument();
+    expect(screen.getByTestId("toggle-positions")).toBeInTheDocument();
+    expect(screen.getByTestId("toggle-quickstart")).toBeInTheDocument();
+    expect(screen.getByTestId("toggle-trending")).toBeInTheDocument();
+    expect(screen.getByTestId("toggle-indices")).toBeInTheDocument();
+  });
+
+  it("hides widget when toggled off", async () => {
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("1. Setup API Keys")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("customize-btn"));
+    fireEvent.click(screen.getByTestId("toggle-quickstart"));
+
+    // The quick start widget content should disappear (labels in panel remain)
+    expect(screen.queryByText("1. Setup API Keys")).not.toBeInTheDocument();
+  });
+
+  it("persists widget config to localStorage", async () => {
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("customize-btn")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("customize-btn"));
+    fireEvent.click(screen.getByTestId("toggle-quickstart"));
+
+    const saved = JSON.parse(localStorage.getItem("dashboard-widgets") || "[]");
+    const quickstart = saved.find((w: { id: string }) => w.id === "quickstart");
+    expect(quickstart.visible).toBe(false);
+  });
+
+  it("resets to default on reset button click", async () => {
+    // Pre-set a custom config
+    localStorage.setItem(
+      "dashboard-widgets",
+      JSON.stringify([
+        { id: "summary", visible: false },
+        { id: "portfolio", visible: true },
+        { id: "recipes", visible: true },
+        { id: "activity", visible: true },
+        { id: "positions", visible: true },
+        { id: "quickstart", visible: true },
+        { id: "trending", visible: true },
+        { id: "indices", visible: true },
+      ]),
+    );
+
+    render(<DashboardPage />);
+
+    // Summary should be hidden initially
+    await waitFor(() => {
+      expect(screen.queryByText("Total Balance")).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("customize-btn"));
+    fireEvent.click(screen.getByTestId("reset-btn"));
+
+    // After reset, summary should be visible again
+    await waitFor(() => {
+      expect(screen.getByText("Total Balance")).toBeInTheDocument();
+    });
+  });
+
+  it("has move up/down buttons for widget reordering", async () => {
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("customize-btn")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("customize-btn"));
+
+    expect(screen.getByTestId("move-up-summary")).toBeInTheDocument();
+    expect(screen.getByTestId("move-down-summary")).toBeInTheDocument();
+    expect(screen.getByTestId("move-up-summary")).toBeDisabled();
+  });
+
+  it("moves widget down when down arrow clicked", async () => {
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("customize-btn")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("customize-btn"));
+    fireEvent.click(screen.getByTestId("move-down-summary"));
+
+    const saved = JSON.parse(localStorage.getItem("dashboard-widgets") || "[]");
+    expect(saved[0].id).toBe("portfolio");
+    expect(saved[1].id).toBe("summary");
+  });
+
+  // Trending and Indices widgets
+
+  it("renders trending stocks widget", async () => {
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Trending Stocks")).toBeInTheDocument();
+      expect(screen.getAllByText("삼성전자").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText("SK하이닉스")).toBeInTheDocument();
+    });
+  });
+
+  it("renders market indices widget", async () => {
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Market Indices")).toBeInTheDocument();
+      expect(screen.getByText("KOSPI")).toBeInTheDocument();
+      expect(screen.getByText("NASDAQ")).toBeInTheDocument();
+    });
+  });
+
+  it("shows empty trending when no data", async () => {
+    setupApiMocks({ trending: [] });
+
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("No trending data")).toBeInTheDocument();
+    });
+  });
+
+  it("shows empty indices when no data", async () => {
+    setupApiMocks({ globalFactors: [] });
+
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("No index data")).toBeInTheDocument();
+    });
+  });
+
+  it("loads widget config from localStorage on mount", async () => {
+    localStorage.setItem(
+      "dashboard-widgets",
+      JSON.stringify([
+        { id: "summary", visible: true },
+        { id: "portfolio", visible: false },
+        { id: "recipes", visible: true },
+        { id: "activity", visible: true },
+        { id: "positions", visible: true },
+        { id: "quickstart", visible: true },
+        { id: "trending", visible: true },
+        { id: "indices", visible: true },
+      ]),
+    );
+
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Total Balance")).toBeInTheDocument();
+    });
+
+    // Portfolio should be hidden
+    expect(screen.queryByText("Portfolio Overview")).not.toBeInTheDocument();
+  });
+
+  it("fetches trending and global factor data", async () => {
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(mockedApi.get).toHaveBeenCalledWith("/rankings/trending?limit=5");
+      expect(mockedApi.get).toHaveBeenCalledWith("/factors/global");
+    });
+  });
+
+  it("closes customize panel when Done clicked", async () => {
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("customize-btn")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("customize-btn"));
+    expect(screen.getByTestId("customize-panel")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("customize-btn"));
+    expect(screen.queryByTestId("customize-panel")).not.toBeInTheDocument();
   });
 });

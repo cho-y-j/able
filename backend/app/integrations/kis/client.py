@@ -159,17 +159,26 @@ class KISClient:
         } for item in items if item.get("stck_bsop_date")]
 
     async def get_minute_ohlcv(self, stock_code: str, interval: int = 1,
-                               end_time: str = "153000") -> list[dict]:
+                               end_time: str | None = None) -> list[dict]:
         """Fetch intraday minute OHLCV data.
 
         Args:
             stock_code: Stock code (e.g. "005930")
             interval: Candle interval in minutes (1, 3, 5, 10, 15, 30, 60)
-            end_time: End time in HHMMSS format (default: market close 15:30)
+            end_time: End time in HHMMSS format. Defaults to current time.
 
         Returns:
-            List of OHLCV dicts with time field
+            List of OHLCV dicts with time and date fields
         """
+        from datetime import datetime as dt
+        import pytz
+
+        kst = pytz.timezone("Asia/Seoul")
+        now_kst = dt.now(kst)
+
+        if end_time is None:
+            end_time = now_kst.strftime("%H%M%S")
+
         params = {
             "FID_ETC_CLS_CODE": "",
             "FID_COND_MRKT_DIV_CODE": "J",
@@ -186,8 +195,11 @@ class KISClient:
             time_val = item.get("stck_cntg_hour", "")
             if not time_val:
                 continue
+            # stck_bsop_date = 영업일자 (YYYYMMDD), fallback to today
+            date_val = item.get("stck_bsop_date", now_kst.strftime("%Y%m%d"))
             result.append({
                 "time": time_val,
+                "date": date_val,
                 "open": float(item.get("stck_oprc", 0)),
                 "high": float(item.get("stck_hgpr", 0)),
                 "low": float(item.get("stck_lwpr", 0)),

@@ -14,6 +14,15 @@ interface RankingEntry {
   volume: number;
 }
 
+interface TrendingEntry {
+  rank: number;
+  stock_name: string;
+  stock_code: string;
+  search_ratio: number;
+  price: number;
+  change_pct: number;
+}
+
 interface ThemeInfo {
   name: string;
   stock_count: number;
@@ -31,7 +40,7 @@ interface InterestStock {
   themes: string[];
 }
 
-const TABS = ["price", "volume", "themes", "interest"] as const;
+const TABS = ["price", "volume", "trending", "themes", "interest"] as const;
 type TabKey = (typeof TABS)[number];
 
 export default function RankingsPage() {
@@ -40,6 +49,7 @@ export default function RankingsPage() {
   const [direction, setDirection] = useState<"up" | "down">("up");
   const [priceRankings, setPriceRankings] = useState<RankingEntry[]>([]);
   const [volumeRankings, setVolumeRankings] = useState<RankingEntry[]>([]);
+  const [trendingStocks, setTrendingStocks] = useState<TrendingEntry[]>([]);
   const [themes, setThemes] = useState<ThemeInfo[]>([]);
   const [interestStocks, setInterestStocks] = useState<InterestStock[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,15 +57,17 @@ export default function RankingsPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [priceRes, volumeRes, themeRes, interestRes] = await Promise.allSettled([
+      const [priceRes, volumeRes, trendingRes, themeRes, interestRes] = await Promise.allSettled([
         api.get(`/rankings/price?direction=${direction}&limit=30`),
         api.get("/rankings/volume?limit=30"),
+        api.get("/rankings/trending?limit=30"),
         api.get("/rankings/themes"),
         api.get("/rankings/interest?limit=20"),
       ]);
 
       if (priceRes.status === "fulfilled") setPriceRankings(priceRes.value.data);
       if (volumeRes.status === "fulfilled") setVolumeRankings(volumeRes.value.data);
+      if (trendingRes.status === "fulfilled") setTrendingStocks(trendingRes.value.data);
       if (themeRes.status === "fulfilled") setThemes(themeRes.value.data);
       if (interestRes.status === "fulfilled") setInterestStocks(interestRes.value.data);
     } catch {
@@ -72,6 +84,7 @@ export default function RankingsPage() {
   const tabLabels: Record<TabKey, string> = {
     price: t.rankings.priceRanking,
     volume: t.rankings.volumeRanking,
+    trending: t.rankings.trending || "Trending",
     themes: t.rankings.themeClassification,
     interest: t.rankings.interestStocks,
   };
@@ -149,6 +162,59 @@ export default function RankingsPage() {
             <RankingTable data={volumeRankings} t={t} />
           )}
 
+          {/* Trending */}
+          {tab === "trending" && (
+            <div>
+              {trendingStocks.length === 0 ? (
+                <EmptyState message={t.rankings.noTrending || "No trending data"} />
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-gray-500 uppercase border-b border-gray-700 text-xs">
+                        <th className="text-left py-2 px-3">#</th>
+                        <th className="text-left py-2 px-3">{t.common.stock}</th>
+                        <th className="text-right py-2 px-3">{t.rankings.searchRatio || "Search %"}</th>
+                        <th className="text-right py-2 px-3">{t.common.price}</th>
+                        <th className="text-right py-2 px-3">{t.rankings.changePct}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {trendingStocks.map((item) => (
+                        <tr
+                          key={item.stock_code || item.rank}
+                          className="border-b border-gray-700/50 hover:bg-gray-700/30"
+                        >
+                          <td className="py-2.5 px-3 text-gray-400 font-mono">{item.rank}</td>
+                          <td className="py-2.5 px-3">
+                            <span className="text-white font-medium">{item.stock_name}</span>
+                            {item.stock_code && (
+                              <span className="text-gray-500 font-mono text-xs ml-2">{item.stock_code}</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-right text-yellow-400 font-mono">
+                            {item.search_ratio.toFixed(2)}%
+                          </td>
+                          <td className="py-2.5 px-3 text-right text-gray-300 font-mono">
+                            {formatKRW(item.price)}
+                          </td>
+                          <td
+                            className={`py-2.5 px-3 text-right font-mono ${
+                              item.change_pct >= 0 ? "text-green-400" : "text-red-400"
+                            }`}
+                          >
+                            {item.change_pct >= 0 ? "+" : ""}
+                            {item.change_pct.toFixed(2)}%
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Themes */}
           {tab === "themes" && (
             <div>
@@ -221,12 +287,12 @@ export default function RankingsPage() {
                           </div>
                         </div>
                         <div className="flex gap-1 flex-wrap justify-end">
-                          {stock.themes.map((t) => (
+                          {stock.themes.map((th) => (
                             <span
-                              key={t}
+                              key={th}
                               className="text-[10px] px-2 py-0.5 rounded-full bg-blue-900/40 text-blue-400"
                             >
-                              {t}
+                              {th}
                             </span>
                           ))}
                         </div>

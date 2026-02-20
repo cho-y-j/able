@@ -1436,8 +1436,8 @@ function StockSearchTab({
             <StockAutocomplete
               value={stockCode}
               onChange={setStockCode}
-              onSelect={(stock) => {
-                setStockCode(stock.code);
+              onSelect={(code) => {
+                setStockCode(code);
                 setTimeout(fetchPrice, 100);
               }}
               placeholder={t.market.searchPlaceholder}

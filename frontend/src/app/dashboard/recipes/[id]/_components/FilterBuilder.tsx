@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { StockAutocomplete } from "@/components/StockAutocomplete";
-import type { StockResult } from "@/lib/useStockSearch";
 
 interface FilterBuilderProps {
   customFilters: Record<string, unknown>;
@@ -35,10 +34,10 @@ export default function FilterBuilder({
     onFiltersChange({ ...customFilters, [key]: value });
   };
 
-  const addStock = (stock: StockResult) => {
-    if (!stockCodes.includes(stock.code)) {
-      onStockCodesChange([...stockCodes, stock.code]);
-      setStockNames((prev) => ({ ...prev, [stock.code]: stock.name }));
+  const addStock = (code: string, name?: string) => {
+    if (!stockCodes.includes(code)) {
+      onStockCodesChange([...stockCodes, code]);
+      setStockNames((prev) => ({ ...prev, [code]: name || code }));
     }
     setStockInput("");
   };

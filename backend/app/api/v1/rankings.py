@@ -33,6 +33,15 @@ class ThemeInfo(BaseModel):
     stocks: list[dict]
 
 
+class TrendingEntry(BaseModel):
+    rank: int
+    stock_name: str
+    stock_code: str
+    search_ratio: float
+    price: int
+    change_pct: float
+
+
 class InterestStock(BaseModel):
     stock_code: str
     stock_name: str
@@ -148,6 +157,21 @@ async def get_interest_stocks(
         return []
 
 
+@router.get("/trending", response_model=list[TrendingEntry])
+async def get_trending_stocks(
+    limit: int = Query(default=20, le=50),
+    user: User = Depends(get_current_user),
+):
+    """Get trending (popular search) stocks from Naver Finance."""
+    try:
+        from app.services.trending_stocks import fetch_naver_trending
+        data = await fetch_naver_trending(limit=limit)
+        return [TrendingEntry(**item) for item in data]
+    except Exception as e:
+        logger.warning("Failed to fetch trending stocks: %s", e)
+        return []
+
+
 @router.get("/catalog")
 async def get_rankings_catalog(
     user: User = Depends(get_current_user),
@@ -157,6 +181,7 @@ async def get_rankings_catalog(
         "rankings": [
             {"type": "price", "label": "상승/하락률 순위", "description": "당일 등락률 기준"},
             {"type": "volume", "label": "거래량 순위", "description": "당일 누적 거래량 기준"},
+            {"type": "trending", "label": "인기 검색", "description": "네이버 금융 인기 검색 종목"},
             {"type": "themes", "label": "테마 분류", "description": "섹터 기반 테마 그룹핑"},
             {"type": "interest", "label": "관심종목", "description": "복합 점수 기반 추천"},
         ],

@@ -6,7 +6,6 @@ import { useI18n } from "@/i18n";
 import { GradeBadge, gradeInfo } from "./GradeBadge";
 import { STRATEGY_TYPE_LABELS, STRATEGY_TYPE_INFO } from "./StrategyCard";
 import { StockAutocomplete } from "@/components/StockAutocomplete";
-import type { StockResult } from "@/lib/useStockSearch";
 
 interface SearchJob {
   job_id: string;
@@ -213,7 +212,7 @@ export function StrategySearchPanel({
           <StockAutocomplete
             value={searchCode}
             onChange={setSearchCode}
-            onSelect={(stock: StockResult) => setSearchCode(stock.code)}
+            onSelect={(code) => setSearchCode(code)}
             placeholder={t.strategies.stockCodePlaceholder}
             market={market}
           />

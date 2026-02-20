@@ -350,13 +350,76 @@ def _send_condition_notification(db, user_id, condition_id: str, condition_name:
     return 1
 
 
+def _fetch_kis_prices_for_user(user_id, stock_codes: list[str], db_session) -> dict:
+    """Fetch real-time KIS prices for a user's stocks. Returns {stock_code: price_dict}."""
+    import asyncio
+
+    async def _fetch():
+        from app.db.session import async_session_factory
+        from app.services.kis_service import get_kis_client
+
+        prices = {}
+        try:
+            async with async_session_factory() as async_db:
+                kis = await get_kis_client(user_id, async_db)
+                for code in stock_codes:
+                    try:
+                        price = await kis.get_price(code)
+                        if price and price.get("current_price", 0) > 0:
+                            prices[code] = price
+                    except Exception as e:
+                        logger.debug(f"KIS price fetch failed for {code}: {e}")
+        except Exception as e:
+            logger.warning(f"KIS client init failed for user {user_id}: {e}")
+        return prices
+
+    try:
+        return asyncio.run(_fetch())
+    except Exception as e:
+        logger.warning(f"KIS price batch failed for user {user_id}: {e}")
+        return {}
+
+
+def _append_realtime_bar(df, price_data: dict):
+    """Append today's real-time OHLCV bar to historical DataFrame.
+
+    If today's date already exists in the DataFrame, replace it.
+    Otherwise append a new row.
+    """
+    import pandas as pd
+    from datetime import datetime as dt
+
+    if not price_data or price_data.get("current_price", 0) <= 0:
+        return df
+
+    today = pd.Timestamp(dt.now().date())
+
+    new_row = pd.DataFrame(
+        [{
+            "open": price_data.get("open", price_data["current_price"]),
+            "high": price_data.get("high", price_data["current_price"]),
+            "low": price_data.get("low", price_data["current_price"]),
+            "close": price_data["current_price"],
+            "volume": price_data.get("volume", 0),
+        }],
+        index=pd.DatetimeIndex([today], name="date"),
+    )
+
+    # Remove today's row if it already exists (from Yahoo partial data)
+    if today in df.index:
+        df = df.drop(today)
+
+    df = pd.concat([df, new_row])
+    return df
+
+
 @celery_app.task(name="tasks.monitor_active_recipes", soft_time_limit=300, time_limit=360)
 def monitor_active_recipes():
     """Evaluate active recipe conditions via REST polling.
 
     Runs every 5 minutes during market hours.
-    Fetches OHLCV data (Yahoo Finance), runs SignalComposer,
-    and caches entry/exit signals to Redis.
+    Fetches historical OHLCV (Yahoo) + real-time price (KIS),
+    runs SignalComposer, and caches entry/exit signals to Redis.
     """
     import asyncio
     import json
@@ -382,6 +445,25 @@ def monitor_active_recipes():
         end_date = dt.now().strftime("%Y-%m-%d")
         start_date = (dt.now() - timedelta(days=365)).strftime("%Y-%m-%d")
 
+        # Group recipes by user to batch KIS price fetches
+        from collections import defaultdict
+        user_recipes: dict[str, list] = defaultdict(list)
+        for recipe in recipes:
+            user_recipes[str(recipe.user_id)].append(recipe)
+
+        # Collect all stock codes per user for batch KIS price fetch
+        user_prices: dict[str, dict] = {}
+        for uid, user_recs in user_recipes.items():
+            all_codes = set()
+            for rec in user_recs:
+                all_codes.update(rec.stock_codes or [])
+            if all_codes:
+                user_prices[uid] = _fetch_kis_prices_for_user(uid, list(all_codes), db)
+                logger.info(f"KIS prices fetched for user {uid[:8]}...: {len(user_prices[uid])}/{len(all_codes)} stocks")
+
+        # Yahoo OHLCV cache to avoid re-fetching same stock
+        ohlcv_cache: dict[str, object] = {}
+
         evaluated = 0
         signals_found = 0
         notifications_sent = 0
@@ -392,13 +474,25 @@ def monitor_active_recipes():
             if not stock_codes:
                 continue
 
+            kis_prices = user_prices.get(str(recipe.user_id), {})
+
             for stock_code in stock_codes:
                 evaluated += 1
                 try:
-                    df = provider.get_ohlcv(stock_code, start_date, end_date)
+                    # Get historical data (cached per stock)
+                    if stock_code not in ohlcv_cache:
+                        ohlcv_cache[stock_code] = provider.get_ohlcv(stock_code, start_date, end_date)
+                    df = ohlcv_cache[stock_code]
+
                     if df is None or df.empty or len(df) < 60:
                         logger.debug(f"Insufficient data for {stock_code}, skipping")
                         continue
+
+                    # Make a copy and append today's real-time bar from KIS
+                    df = df.copy()
+                    kis_price = kis_prices.get(stock_code)
+                    if kis_price:
+                        df = _append_realtime_bar(df, kis_price)
 
                     entry, exit_ = composer.compose(df, recipe.signal_config)
 

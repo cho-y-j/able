@@ -148,7 +148,7 @@ describe("StockAutocomplete", () => {
 
     await user.click(screen.getByText("SNT다이내믹스"));
 
-    expect(mockOnSelect).toHaveBeenCalledWith(mockResults[0]);
+    expect(mockOnSelect).toHaveBeenCalledWith("003570", "SNT다이내믹스");
     expect(mockOnChange).toHaveBeenCalledWith("003570");
   });
 

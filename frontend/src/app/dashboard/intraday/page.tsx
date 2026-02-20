@@ -26,6 +26,7 @@ interface IntradaySummary {
 
 interface CandleData {
   time: string;
+  date?: string;
   open: number;
   high: number;
   low: number;
@@ -41,6 +42,7 @@ interface IntradayResult {
   signals: IntradaySignal[];
   summary: IntradaySummary;
   candles: CandleData[];
+  market_date: string | null;
 }
 
 const INTERVALS = [1, 3, 5, 10, 15, 30, 60];
@@ -74,7 +76,7 @@ export default function IntradayPage() {
     setLoading(true);
     setError("");
     try {
-      const resp = await api.get(`/market-data/intraday/${stockCode}?interval=${interval}`);
+      const resp = await api.get(`/market/intraday/${stockCode}?interval=${interval}`);
       setResult(resp.data);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "분석 실패";
@@ -101,15 +103,15 @@ export default function IntradayPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold">{t("intraday.title")}</h1>
-        <p className="text-sm text-gray-400 mt-1">{t("intraday.description")}</p>
+        <h1 className="text-2xl font-bold">{t.intraday.title}</h1>
+        <p className="text-sm text-gray-400 mt-1">{t.intraday.description}</p>
       </div>
 
       {/* Controls */}
       <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
         <div className="flex flex-wrap items-end gap-4">
           <div className="flex-1 min-w-[200px]">
-            <label className="text-xs text-gray-400 mb-1 block">{t("intraday.selectStock")}</label>
+            <label className="text-xs text-gray-400 mb-1 block">{t.intraday.selectStock}</label>
             <StockAutocomplete
               onSelect={(code, name) => {
                 setStockCode(code);
@@ -119,7 +121,7 @@ export default function IntradayPage() {
           </div>
 
           <div>
-            <label className="text-xs text-gray-400 mb-1 block">{t("intraday.interval")}</label>
+            <label className="text-xs text-gray-400 mb-1 block">{t.intraday.interval}</label>
             <div className="flex gap-1">
               {INTERVALS.map((iv) => (
                 <button
@@ -142,7 +144,7 @@ export default function IntradayPage() {
             disabled={!stockCode || loading}
             className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-700 rounded-lg text-sm font-medium transition-colors"
           >
-            {loading ? "..." : t("intraday.analyze")}
+            {loading ? "..." : t.intraday.analyze}
           </button>
         </div>
       </div>
@@ -164,7 +166,7 @@ export default function IntradayPage() {
                   {stockName} <span className="text-gray-500 text-sm">{stockCode}</span>
                 </h2>
                 <p className="text-xs text-gray-500">
-                  {result.candle_count} {t("intraday.candleCount")} | {result.interval}m
+                  {result.candle_count} {t.intraday.candleCount} | {result.interval}m
                 </p>
               </div>
               <div className="text-right">
@@ -172,7 +174,7 @@ export default function IntradayPage() {
                   {result.summary.sentiment_label}
                 </div>
                 <div className="text-xs text-gray-500 mt-1">
-                  {t("intraday.recommendation")}: {result.summary.recommendation}
+                  {t.intraday.recommendation}: {result.summary.recommendation}
                 </div>
               </div>
             </div>
@@ -181,14 +183,14 @@ export default function IntradayPage() {
             <div className="flex gap-4 text-sm">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-red-500" />
-                <span className="text-gray-400">{t("intraday.bullish")}: {result.summary.bullish_count}</span>
+                <span className="text-gray-400">{t.intraday.bullish}: {result.summary.bullish_count}</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-blue-500" />
-                <span className="text-gray-400">{t("intraday.bearish")}: {result.summary.bearish_count}</span>
+                <span className="text-gray-400">{t.intraday.bearish}: {result.summary.bearish_count}</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-gray-500">{t("intraday.sentiment")}:</span>
+                <span className="text-gray-500">{t.intraday.sentiment}:</span>
                 <span className={sentimentColor(result.summary.sentiment)}>
                   {result.summary.sentiment > 0 ? "+" : ""}
                   {(result.summary.sentiment * 100).toFixed(0)}%
@@ -200,7 +202,7 @@ export default function IntradayPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Signals */}
             <div className="bg-gray-900 rounded-xl p-5 border border-gray-800">
-              <h3 className="text-sm font-semibold text-gray-300 mb-3">{t("intraday.signals")}</h3>
+              <h3 className="text-sm font-semibold text-gray-300 mb-3">{t.intraday.signals}</h3>
               {result.signals.length === 0 ? (
                 <p className="text-sm text-gray-500">현재 활성 시그널 없음</p>
               ) : (
@@ -236,7 +238,7 @@ export default function IntradayPage() {
 
             {/* Factors */}
             <div className="bg-gray-900 rounded-xl p-5 border border-gray-800">
-              <h3 className="text-sm font-semibold text-gray-300 mb-3">{t("intraday.factors")}</h3>
+              <h3 className="text-sm font-semibold text-gray-300 mb-3">{t.intraday.factors}</h3>
               <div className="space-y-2">
                 {Object.entries(result.factors).map(([key, val]) => (
                   <div key={key} className="flex items-center justify-between py-1.5 border-b border-gray-800/50">
@@ -252,24 +254,31 @@ export default function IntradayPage() {
 
           {/* Candle Data Table (최근 20개만) */}
           <div className="bg-gray-900 rounded-xl p-5 border border-gray-800">
-            <h3 className="text-sm font-semibold text-gray-300 mb-3">Recent Candles</h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-300">{t.intraday.recentCandles}</h3>
+              {result.market_date && (
+                <span className="text-xs text-gray-500">{result.market_date}</span>
+              )}
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-gray-500 border-b border-gray-800">
-                    <th className="text-left py-2 pr-4">Time</th>
-                    <th className="text-right py-2 pr-4">Open</th>
-                    <th className="text-right py-2 pr-4">High</th>
-                    <th className="text-right py-2 pr-4">Low</th>
-                    <th className="text-right py-2 pr-4">Close</th>
-                    <th className="text-right py-2">Volume</th>
+                    <th className="text-left py-2 pr-4">{t.intraday.time}</th>
+                    <th className="text-right py-2 pr-4">{t.intraday.open}</th>
+                    <th className="text-right py-2 pr-4">{t.intraday.high}</th>
+                    <th className="text-right py-2 pr-4">{t.intraday.low}</th>
+                    <th className="text-right py-2 pr-4">{t.intraday.close}</th>
+                    <th className="text-right py-2">{t.intraday.volume}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {result.candles.slice(-20).reverse().map((c, i) => {
-                    const timeStr = c.time?.length >= 4
-                      ? `${c.time.slice(0, 2)}:${c.time.slice(2, 4)}`
-                      : c.time;
+                    const timeStr = c.time?.length >= 6
+                      ? `${c.time.slice(0, 2)}:${c.time.slice(2, 4)}:${c.time.slice(4, 6)}`
+                      : c.time?.length >= 4
+                        ? `${c.time.slice(0, 2)}:${c.time.slice(2, 4)}`
+                        : c.time;
                     const isUp = c.close >= c.open;
                     return (
                       <tr key={i} className="border-b border-gray-800/30">
@@ -295,7 +304,7 @@ export default function IntradayPage() {
       {!result && !loading && !error && (
         <div className="text-center py-20 text-gray-500">
           <div className="text-4xl mb-4">W</div>
-          <p>{t("intraday.selectStock")}</p>
+          <p>{t.intraday.selectStock}</p>
         </div>
       )}
     </div>

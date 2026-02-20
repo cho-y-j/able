@@ -48,8 +48,8 @@ class Settings(BaseSettings):
     schedule_recipe_start_hour: int = 8         # 레시피 모니터링 시작 시각
     schedule_recipe_end_hour: int = 16          # 레시피 모니터링 종료 시각
     schedule_condition_interval_minutes: int = 10  # 조건검색 폴링 간격 (분)
-    schedule_condition_start_hour: int = 9      # 조건검색 시작 시각
-    schedule_condition_end_hour: int = 15       # 조건검색 종료 시각
+    schedule_condition_start_hour: int = 8      # 조건검색 시작 시각 (NXT 프리마켓 08:00)
+    schedule_condition_end_hour: int = 16       # 조건검색 종료 시각
     schedule_factor_interval_minutes: int = 30  # 팩터 수집 간격 (분)
     schedule_factor_start_hour: int = 9         # 팩터 수집 시작 시각
     schedule_factor_end_hour: int = 16          # 팩터 수집 종료 시각

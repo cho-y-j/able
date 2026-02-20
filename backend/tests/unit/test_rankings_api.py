@@ -44,10 +44,11 @@ class TestRankingsCatalog:
 
         result = await get_rankings_catalog(user=test_user)
         assert "rankings" in result
-        assert len(result["rankings"]) == 4
+        assert len(result["rankings"]) == 5
         types = {r["type"] for r in result["rankings"]}
         assert "price" in types
         assert "volume" in types
+        assert "trending" in types
         assert "themes" in types
         assert "interest" in types
 
@@ -128,3 +129,37 @@ class TestInterestStocks:
         with patch("app.api.v1.rankings.get_kis_client", AsyncMock(side_effect=Exception("fail"))):
             result = await get_interest_stocks(limit=20, user=test_user, db=mock_db)
         assert result == []
+
+
+class TestTrendingStocks:
+    @pytest.mark.asyncio
+    async def test_returns_trending_data(self, test_user):
+        from app.api.v1.rankings import get_trending_stocks
+
+        mock_data = [
+            {"rank": 1, "stock_name": "삼성전자", "stock_code": "005930",
+             "search_ratio": 12.5, "price": 78000, "change_pct": 2.63},
+        ]
+        with patch("app.services.trending_stocks.fetch_naver_trending", AsyncMock(return_value=mock_data)):
+            result = await get_trending_stocks(limit=20, user=test_user)
+        assert len(result) == 1
+        assert result[0].stock_name == "삼성전자"
+        assert result[0].search_ratio == 12.5
+
+    @pytest.mark.asyncio
+    async def test_returns_empty_on_error(self, test_user):
+        from app.api.v1.rankings import get_trending_stocks
+
+        with patch("app.services.trending_stocks.fetch_naver_trending", AsyncMock(side_effect=Exception("fail"))):
+            result = await get_trending_stocks(limit=20, user=test_user)
+        assert result == []
+
+
+class TestRankingsCatalogIncludesTrending:
+    @pytest.mark.asyncio
+    async def test_catalog_has_trending(self, test_user):
+        from app.api.v1.rankings import get_rankings_catalog
+
+        result = await get_rankings_catalog(user=test_user)
+        types = {r["type"] for r in result["rankings"]}
+        assert "trending" in types

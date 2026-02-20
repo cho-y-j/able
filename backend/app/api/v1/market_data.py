@@ -357,6 +357,7 @@ async def get_intraday_analysis(
                 "signals": [],
                 "summary": {"sentiment": 0, "sentiment_label": "데이터 없음", "recommendation": "장외시간"},
                 "candles": [],
+                "market_date": None,
             }
 
         df = minute_data_to_df(minute_data)
@@ -367,6 +368,14 @@ async def get_intraday_analysis(
         # Return last 60 candles for chart display
         recent_candles = minute_data[-60:] if len(minute_data) > 60 else minute_data
 
+        # Extract market date from candle data (first candle with date)
+        market_date = None
+        for candle in minute_data:
+            if candle.get("date"):
+                raw = candle["date"]
+                market_date = f"{raw[:4]}-{raw[4:6]}-{raw[6:8]}" if len(raw) == 8 else raw
+                break
+
         return {
             "stock_code": stock_code,
             "interval": interval,
@@ -375,6 +384,7 @@ async def get_intraday_analysis(
             "signals": signals,
             "summary": summary,
             "candles": recent_candles,
+            "market_date": market_date,
         }
 
     except ValueError as e:

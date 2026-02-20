@@ -91,8 +91,15 @@ export default function AutoTradingPage() {
     try {
       const { data } = await api.get("/recipes");
       const active = (data as Recipe[]).filter((r) => r.is_active);
-      setRecipes(active);
-      return active;
+      // Deduplicate by id (API may return duplicates)
+      const seen = new Set<string>();
+      const unique = active.filter((r) => {
+        if (seen.has(r.id)) return false;
+        seen.add(r.id);
+        return true;
+      });
+      setRecipes(unique);
+      return unique;
     } catch {
       setRecipes([]);
       return [];
@@ -394,7 +401,7 @@ export default function AutoTradingPage() {
             <StockAutocomplete
               value={searchInput}
               onChange={setSearchInput}
-              onSelect={(stock) => { setSelectedStock(stock); setSearchInput(""); }}
+              onSelect={(code, name) => { setSelectedStock({ code, name: name || code, market: "", sector: "" }); setSearchInput(""); }}
               placeholder="종목코드 또는 종목명"
               className="!py-2.5"
             />

@@ -105,9 +105,9 @@ export default function PatternsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">{t("patterns.title") || "Pattern Discovery"}</h1>
+          <h1 className="text-2xl font-bold">{t.patterns?.title || "Pattern Discovery"}</h1>
           <p className="text-sm text-gray-400 mt-1">
-            {t("patterns.description") || "ML-discovered multi-factor trading patterns"}
+            {t.patterns?.description || "ML-discovered multi-factor trading patterns"}
           </p>
         </div>
         <button
@@ -115,7 +115,7 @@ export default function PatternsPage() {
           disabled={discovering}
           className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-700 rounded-lg text-sm font-medium transition-colors"
         >
-          {discovering ? "Discovering..." : t("patterns.discover") || "Discover New"}
+          {discovering ? "Discovering..." : t.patterns?.discover || "Discover New"}
         </button>
       </div>
 

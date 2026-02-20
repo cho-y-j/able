@@ -2,11 +2,16 @@ const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000/api/v1/ws'
 
 type MessageHandler = (data: unknown) => void;
 
+const MAX_RETRIES = 10;
+const BASE_DELAY = 1000;
+const MAX_DELAY = 30000;
+
 class WebSocketManager {
   private ws: WebSocket | null = null;
   private handlers: Map<string, Set<MessageHandler>> = new Map();
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private url: string;
+  private retryCount = 0;
 
   constructor(path: string) {
     this.url = `${WS_URL}/${path}`;
@@ -16,6 +21,10 @@ class WebSocketManager {
     if (this.ws?.readyState === WebSocket.OPEN) return;
 
     this.ws = new WebSocket(`${this.url}?token=${token}`);
+
+    this.ws.onopen = () => {
+      this.retryCount = 0;
+    };
 
     this.ws.onmessage = (event) => {
       try {
@@ -29,7 +38,10 @@ class WebSocketManager {
     };
 
     this.ws.onclose = () => {
-      this.reconnectTimer = setTimeout(() => this.connect(token), 3000);
+      if (this.retryCount >= MAX_RETRIES) return;
+      const delay = Math.min(BASE_DELAY * Math.pow(2, this.retryCount), MAX_DELAY);
+      this.retryCount++;
+      this.reconnectTimer = setTimeout(() => this.connect(token), delay);
     };
 
     this.ws.onerror = () => {
@@ -46,6 +58,7 @@ class WebSocketManager {
   }
 
   disconnect(): void {
+    this.retryCount = MAX_RETRIES; // prevent reconnect on intentional disconnect
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.ws?.close();
     this.ws = null;
