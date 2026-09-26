@@ -28,10 +28,16 @@
 
 - **코드 주장**: `경로/파일.py:행번호`
 - **동작 주장**: 실행한 명령어 원문 + 실제 출력 (발췌 시 발췌임을 표시)
-- **수치 주장**: 측정에 사용한 명령 + 출력
+- **수치 주장**: 측정에 사용한 명령 + 출력. **난수를 쓰면 시드와 RNG 종류를 함께 쓴다**
+- **과거 사건의 원인 주장**: 원인 후보의 **릴리스 날짜가 사건 이전인지 먼저 확인한다.**
+  현재 환경에서 관측한 메커니즘을 과거로 투사하지 않는다 (ADR-0012 의 실제 사고).
+  원본 로그가 만료되었으면 `uv pip compile --exclude-newer <사건일>` 로 시점을 복원해 재현한다
+- **문헌 인용**: **초록이 아니라 표·본문을 인용한다.** 학술 초록조차 자기 표보다 낙관적으로 쓴다
+  (ADR-0013 의 Agent Market Arena 사례: 초록 "often outperforming" vs Table 1 16.25%).
+  확인하지 못한 수치는 쓰지 않는다
 
 `나쁜 예`: "백테스트 엔진이 정상 동작하도록 수정했습니다."
-`좋은 예`: "`engine.py:74`를 `position.shift(1)`로 수정. `pytest backend/tests/unit/test_backtest.py -q` → `4 passed`. 랜덤워크 회귀 테스트 Sharpe 0.24 (수정 전 10.74)."
+`좋은 예`: "`engine.py:74`를 `position.shift(1)`로 수정. `pytest backend/tests/unit/test_backtest.py -q` → `4 passed`. 랜덤워크 회귀 테스트 Sharpe −0.51 (수정 전 9.99). 시드 `default_rng(7)`, `docs/research/scripts/proof_lookahead.py` 실행값."
 
 ### 1.3 상태 어휘 — 반드시 이 다섯 개만 사용
 
@@ -177,7 +183,8 @@
 
 > **`WORK_LOG.md` 주의**: 과거 기록의 `✅ 완료`는 이 계약의 `구현됨`에 해당하며 `검증됨`이 아니다.
 > 예: `WORK_LOG.md:13` "백테스팅 엔진 ✅ 완료" — 해당 엔진은 2026-09-26 감사에서 랜덤워크 데이터에
-> Sharpe 10.74를 보고하는 룩어헤드 결함이 확인되었다 (`analysis/backtest/engine.py:74`).
+> Sharpe 10 내외를 보고하는 룩어헤드 결함이 확인되었다 (`analysis/backtest/engine.py:74`).
+> 재현: `cd backend && .venv/bin/python ../docs/research/scripts/proof_lookahead.py` → 엔진 `9.99`, MDD `0.00%`.
 > 과거 항목을 근거로 "이미 검증된 기능"이라고 판단하지 않는다.
 
 ---
