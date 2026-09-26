@@ -35,6 +35,7 @@
 
 | ID | 제목 | 상태 | 차단 요인 |
 |----|------|------|-----------|
+| L-0015 | Q-020b 개인 순매수 복구 | 구현됨 | flow 모듈 프로덕션 미배선 발견 |
 | L-0014 | 경쟁 지형 조사 | 구현됨 | 11축 중 10축 열위 확인 |
 | L-0013 | 라벨·CV 명세 | 구현됨 | 신규 치명 결함 1건(행 정렬) |
 | L-0011 | **독립 검수 반증됨** | 반증됨 | **병합 차단** — 결함 11건 수정 필요 |
@@ -50,6 +51,49 @@
 ---
 
 ## 기록 (최신순)
+
+### [L-0015] Q-020b 개인 순매수 복구 — 범위 밖에서 더 큰 문제 발견
+- 날짜: 2026-09-27
+- 담당: 구현 에이전트(`general-purpose`, quant-builder 지시 인라이닝) / 기록·검증: main
+- 상태: 구현됨
+- 대상 파일: `backend/app/analysis/signals/flow_signals.py`, `backend/tests/unit/test_flow_signals.py`
+- 한 일: `individual_qty` 죽은 변수 복구 + 3주체 대립 팩터 신설. 팩터 7개 추가
+  (`individual_net_buy_qty/_ratio`, `smart_money_net_buy_qty/_ratio`,
+   `flow_opposition_qty/_ratio/_score`)
+- **범위 밖 발견 (더 심각) — 내가 직접 재확인함**:
+  **`flow_signals.py` 는 프로덕션에서 한 번도 호출되지 않는다.**
+  - `grep -rn "extract_flow_factors|compute_foreign_3day_trend" backend/app/` →
+    **정의 2건(`:21`, `:85`)만 나오고 호출부 0건**
+  - `grep -n "flow|foreign|net_buy" backend/app/analysis/signals/registry.py` → **출력 없음**
+  - 유일한 호출부는 `backend/tests/unit/test_flow_signals.py` (32건)
+  → ADR-0017 이 "1급 알파 모듈" 이라 부른 파일은 **배선되지 않은 상태**다.
+    개인 순매수를 버리는 것보다 이것이 더 큰 문제다. **배선은 Q-020 본체 범위이므로 손대지 않음 → Q-020c 신설**
+- **KIS 데이터 제약 (내가 직접 확인)**: `client.py:348-361` 이 반환하는 것은
+  `foreign_net_buy_amt`, `institutional_net_buy_amt` 뿐이며 **`individual_net_buy_amt` 가 없다.**
+  따라서 개인 순매수의 거래대금 정규화는 KIS 호출부 변경 없이 불가능하다 → Q-020d 신설
+- **에이전트가 스스로 보고한 한계 (은폐 없음)**:
+  한국 거래소 수급은 `개인+외국인+기관+기타법인 ≈ 0` 이다. 기타법인이 작은 종목에서는 `I ≈ −S` 가 되어
+  `flow_opposition_score` 가 **±1 로 포화하고 강도 정보를 잃는다** —
+  `compute_foreign_3day_trend` 의 3값 문제와 같은 종류의 실패.
+  그래서 `score` 를 단독으로 두지 않고 `_qty`·`_ratio` 를 강도 채널로 병치했다.
+  **포화 빈도는 실데이터로 미측정**
+- 증거 (내가 재실행해 확인):
+  - `cd backend && .venv/bin/python -m pytest tests/unit -q --no-header` → `994 passed, 148 warnings in 13.41s`
+  - 기준선 `978 passed` → `994` = **+16 (에이전트가 추가한 테스트 수와 일치). 회귀 0건**
+  - 반환 딕셔너리는 **순수 추가**. 기존 5개 키의 이름·값·`total_volume == 0` 동작 불변 → 깨지는 호출부 없음
+- **에이전트가 지시대로 하지 않은 것 (올바른 판단)**:
+  `compute_foreign_3day_trend` 를 **고치지 않고 제안만** 했다 (지시대로).
+  제안 5개: `foreign_flow_persistence`(연속일수÷창, 창 파라미터화),
+  `foreign_flow_intensity`(순매수합÷거래량합), `foreign_flow_acceleration`(최근 절반−이전 절반),
+  `foreign_flow_zscore`(60일 분포 대비), `0`(관망)을 매도와 분리.
+  **경고: 창 길이·z-score 창은 자유 파라미터이므로 도입 시 다중검정 시행횟수에 계상되어야 한다** (ADR-0016 1순위와 상호작용)
+- **에이전트가 동시 작업을 감지해 경고**: 종료 시점 `git status` 에
+  `backend/app/schemas/validation.py` (+72/−3, 타 에이전트의 Q-002b 작업)가 있음을 보고하고
+  `CLAUDE.md` 3.2 에 따라 경로 명시 스테이징을 요구했다. **감독자가 그대로 따랐다**
+- 검수: 미검수 — 병합 전 독립 검수 대상
+- 남은 범위: 프로덕션 배선(Q-020c), 개인 거래대금(Q-020d), 포화 빈도 실측, ruff·타입체크 미실행
+- 다음 작업: 구현 A·C 완료 대기 → 통합 독립 검수 → CI → 병합
+- 대체: 없음
 
 ### [L-0014] 경쟁 지형 조사 — 11개 축 중 10개 열위. 내 문서가 내 규칙을 위반한 것 2건 발견
 - 날짜: 2026-09-27

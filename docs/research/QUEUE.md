@@ -82,6 +82,24 @@
   그 데이터를 가져와서 버리고 있다. Q-020 의 선행 최소 조치
 - 차단 요인: 없음. **한 줄 규모이며 ADR-0006 의 전제를 복구한다**
 
+### [Q-020c] `flow_signals.py` 를 프로덕션에 배선 (미배선 상태)
+- 상태: 대기
+- 근거: L-0015. **`flow_signals.py` 는 프로덕션에서 한 번도 호출되지 않는다.**
+  `grep -rn "extract_flow_factors|compute_foreign_3day_trend" backend/app/` → 정의 2건만, 호출부 0건.
+  `registry.py` 에 flow 등록 없음. 유일한 호출부는 테스트 파일이다.
+  ADR-0017 이 "1급 알파 모듈" 이라 부른 파일이 배선되지 않은 상태다 — **개인 순매수를 버리는 것보다 큰 문제**
+- 범위: `analysis/signals/registry.py` 에 flow 팩터 등록 + `factor_collector` 수집 경로 연결 +
+  `factor_snapshots` 적재. **시점정합 필수** (수급은 일별 확정치이므로 발표일 기준 저장)
+- 차단 요인: 없음. **Q-020(수급 1급 알파) 의 실질 선행 조건**
+
+### [Q-020d] 개인 순매수의 거래대금 정규화 (KIS 반환 필드 부재)
+- 상태: 대기
+- 근거: L-0015. `integrations/kis/client.py:348-361` 이 `foreign_net_buy_amt`,
+  `institutional_net_buy_amt` 만 반환하고 **`individual_net_buy_amt` 가 없다**
+  (`prsn_ntby_tr_pbmn` 미파싱). 따라서 개인 순매수의 거래대금 정규화가 불가능하다
+- 범위: KIS 응답에 해당 필드가 있는지 확인하고 파싱 추가. 없으면 대체 경로 조사
+- 차단 요인: 없음
+
 ### [Q-032b] `limits.py` 최악손실 3% 하드코딩
 - 상태: 대기
 - 근거: L-0014. `limits.py:85` `if order_value * 0.03 > daily_loss_remaining` — 종목 변동성과 무관한
