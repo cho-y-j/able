@@ -35,11 +35,45 @@
 
 | ID | 제목 | 상태 | 차단 요인 |
 |----|------|------|-----------|
-| — | (없음) | — | — |
+| L-0004 | 일일 자동 루틴 | 구현됨 | **PR #1 병합 대기** — 병합 전까지 루틴은 매일 중단만 보고 |
+| Q-002 | L-0001 독립 재현 | 미착수 | 없음 (루틴 첫 착수 예정) |
 
 ---
 
 ## 기록 (최신순)
+
+### [L-0004] 일일 연구·개발 사이클 클라우드 루틴 설정
+- 날짜: 2026-09-27
+- 담당: main
+- 상태: 구현됨
+- 대상: claude.ai 예약 루틴 `trig_01WXgK8LSrLNGWyfZkSZVkxw` (저장소 파일 아님)
+- 한 일:
+  - 매일 06:00 KST (cron `0 21 * * *` UTC) 실행. 모델 `claude-opus-5`
+  - 저장소: `https://github.com/cho-y-j/able` (클라우드가 새로 클론)
+  - 사이클: 선행조건 확인 → 기준선 측정 → QUEUE에서 **1건만** 선택 →
+    `quant-builder` 위임 → **신규 컨텍스트** `quant-reviewer` 검수 → LEDGER 기록 → 가지 + PR
+  - `반증됨` 판정 시 통과 금지. 2회 반증이면 되돌리고 기록. PR 제목에 `[반증됨]` 표기 강제
+  - ADR-0004 보호: `risk/limits.py`·`circuit_breaker.py`·`human_approval.py` 수정 금지 (제안만)
+  - `main` 직접 수정 금지, `.env` 접근 금지
+- 증거:
+  - `RemoteTrigger create` → `HTTP 200`, `outcome: CREATE_TRIGGER_OUTCOME_CREATED`
+  - `id: trig_01WXgK8LSrLNGWyfZkSZVkxw`, `enabled: true`
+  - `next_run_at: 2026-09-26T21:08:27Z` (= 2026-09-27 06:08 KST)
+  - 관리: https://claude.ai/code/routines/trig_01WXgK8LSrLNGWyfZkSZVkxw
+- **클라우드 환경 제약 (실측)**:
+  - PostgreSQL·Redis·KIS 자격증명 없음 → `tests/integration` 실행 불가, KIS 호출 작업 착수 불가
+  - 단, `tests/unit` 은 인프라 없이 전량 통과함을 로컬에서 확인:
+    `cd backend && .venv/bin/python -m pytest tests/unit -q` → `978 passed in 14.13s`
+    (DB·Redis 미기동 상태에서 측정) → 루틴이 전체 유닛 스위트를 검증에 쓸 수 있다
+  - 이 제약을 루틴 프롬프트에 명시해, 인프라가 필요한 항목은 건너뛰고 보고하게 함
+- 검수: 미검수 — 첫 실행(2026-09-27 06:08 KST) 결과로 실효성이 검증된다
+- 남은 범위:
+  - **PR #1 미병합 상태에서는 루틴이 아무 작업도 하지 않고 중단한다** (의도된 설계).
+    `CLAUDE.md`·`docs/research/*` 가 `main`에 있어야 동작한다
+  - 프론트엔드 빌드(`npm run build`)를 클라우드에서 실행 가능한지 미검증
+  - MCP 커넥터 2개(`Claude_Docs`, `Claude_Code_Remote`)가 서버에서 자동 부착됨 — 요청하지 않았으며 용도 미확인
+- 다음 작업: PR #1 병합 → 루틴 첫 실행이 Q-002 또는 Q-001 착수
+- 대체: 없음
 
 ### [L-0003] L-0001 증거 재현 스크립트를 저장소로 이전 + 실행 확인
 - 날짜: 2026-09-27
