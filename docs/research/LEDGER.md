@@ -35,12 +35,58 @@
 
 | ID | 제목 | 상태 | 차단 요인 |
 |----|------|------|-----------|
+| L-0005 | CI 정상화 | 구현됨 | PR #1 CI 재실행 결과 대기 |
 | L-0004 | 일일 자동 루틴 | 구현됨 | **PR #1 병합 대기** — 병합 전까지 루틴은 매일 중단만 보고 |
 | Q-002 | L-0001 독립 재현 | 미착수 | 없음 (루틴 첫 착수 예정) |
 
 ---
 
 ## 기록 (최신순)
+
+### [L-0005] CI 7개월 무력화 원인 규명 및 의존성 버전 고정
+- 날짜: 2026-09-27
+- 담당: main
+- 상태: 구현됨
+- 대상 파일: `backend/pyproject.toml:12,24`, `backend/app/config.py:12`, `.github/workflows/ci.yml:45`,
+  `docker-compose.yml`(3곳), `.env.example`, `backend/.env.example`, 테스트 18개 파일
+- 한 일: PR #1의 CI 실패를 조사한 결과, 실패가 **제 변경과 무관하며 2026-02-19부터 계속된 것**임을 확인.
+  무고정 의존성 2건이 원인이었고, 실제로는 **수집 단계에서 중단되어 테스트가 단 하나도 실행되지 않았다.**
+- 증거:
+  - CI 이력: `gh run list --workflow=ci.yml` → main 브랜치 최근 6회 전부 `failure`
+    (2026-02-19T03:33 ~ 2026-02-20T06:30)
+  - CI 실패 로그: `E ModuleNotFoundError: No module named 'psycopg'`
+    / `ERROR tests/unit/test_metrics.py` / `ERROR tests/unit/test_recipe_performance.py`
+    / `Interrupted: 2 errors during collection` / `2 errors in 3.12s`
+  - **원인 1** — SQLAlchemy 무고정. 격리 환경(Python 3.13.12)에 `sqlalchemy[asyncio]>=2.0` 설치 →
+    `2.1.1`. 스킴 해석 실측:
+    `postgresql` → `psycopg` / `postgresql+psycopg2` → `psycopg2`
+    `create_engine('postgresql://...')` → `실패 ModuleNotFoundError: No module named 'psycopg'`
+    `create_engine('postgresql+psycopg2://...')` → `성공 (psycopg2)`
+    로컬은 `2.0.46`이라 `postgresql://` → `psycopg2`로 해석되어 통과했다
+  - **원인 2** — bcrypt 무고정. 신규 설치 시 `5.0.0` →
+    `AttributeError: module 'bcrypt' has no attribute '__about__'` (passlib 1.7.4가 읽는 속성이 제거됨)
+    → `test_strategy_search.py` 17건 오류
+  - 버전 대조 실측: sqlalchemy 로컬 `2.0.46` vs 신규 `2.1.1` / bcrypt 로컬 `4.0.1` vs 신규 `5.0.0`
+  - 조치 후 **완전 신규 환경**(`/tmp/ci-verify`, Python 3.13.12, `pip install ".[dev]"`) 검증:
+    설치된 버전 `sqlalchemy 2.0.54 / bcrypt 4.0.1 / passlib 1.7.4 / psycopg2-binary 2.9.13`
+    `pytest tests/unit -q` → `978 passed, 148 warnings in 50.41s`
+  - 기존 로컬 환경 회귀 확인: `978 passed in 13.75s` (변경 전과 동일)
+- **중요한 사실 (은폐하지 않고 기록)**:
+  로컬이 동작했던 유일한 이유는 과거 수동으로 `pip install bcrypt==4.0.1`을 실행했기 때문이며,
+  그 수정이 `pyproject.toml`에 반영되지 않았다. 따라서 **새로 clone하는 모든 환경이 깨진 상태였다** —
+  CI, 클라우드 루틴, 새 PC, Docker 빌드 전부. 앞으로 "로컬에서 통과"를 검증 근거로 쓸 때
+  신규 환경에서도 통과하는지 함께 확인한다.
+- **SQLAlchemy 2.1 자체는 무죄**: 2.1.1 + `postgresql+psycopg2://` 조합에서 17 오류는 전부 bcrypt 문제였고
+  SQLAlchemy 기인 실패는 0건이었다. `<2.1` 고정은 미검증에 대한 보수적 조치이며 영구 결정이 아니다 (Q-006)
+- 검수: 미검수 — CI 자체가 이 변경의 검수자다. PR #1 재실행 결과로 판정된다
+- 남은 범위:
+  - `.env`(gitignore 대상)의 `DATABASE_URL_SYNC`는 수정하지 않았다. CLAUDE.md가 에이전트의 `.env`
+    접근을 금지하며, 사용자가 직접 `postgresql+psycopg2://`로 바꿔야 한다
+  - 통합 테스트 미실행 (로컬 DB 기동 필요). CI에서 처음으로 실행될 것이다
+  - Docker 빌드 미검증
+  - passlib 탈출(Q-005), SQLAlchemy 2.1 마이그레이션(Q-006), 전수 고정(Q-007)은 이연
+- 다음 작업: PR #1 CI 재실행 확인 → 병합 → 루틴 첫 실행
+- 대체: 없음
 
 ### [L-0004] 일일 연구·개발 사이클 클라우드 루틴 설정
 - 날짜: 2026-09-27

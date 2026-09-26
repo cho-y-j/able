@@ -53,6 +53,43 @@
 - 범위: `docs/research/scripts/proof_lookahead.py` 로 저장하고 CI에서 실행 가능하게
 - 차단 요인: 없음
 
+### [Q-004] 의존성 버전 고정 검증 — CI 최초 정상화
+- 상태: 진행중 (PR #1)
+- 근거: CI가 2026-02-19부터 7개월간 `failure`였고, 실제로는 **수집 단계에서 중단되어 테스트가 단 하나도 실행되지 않았다**
+- 원인 2건 (무고정 의존성):
+  1. `sqlalchemy[asyncio]>=2.0` → 2.1.1 설치. 2.1이 `postgresql://`의 기본 드라이버를
+     psycopg2 → psycopg v3로 변경. 설치된 건 `psycopg2-binary`뿐 → `ModuleNotFoundError: No module named 'psycopg'`
+  2. `passlib[bcrypt]>=1.7` 경유 bcrypt 무고정 → 5.0.0 설치. passlib 1.7.4가 읽는
+     `bcrypt.__about__`가 제거됨 → `AttributeError`. `test_strategy_search.py` 17건 오류
+- 조치: 모든 URL을 `postgresql+psycopg2://`로 명시, `sqlalchemy<2.1`·`bcrypt<4.1` 고정
+- **주의**: 로컬이 동작했던 이유는 과거 수동으로 `pip install bcrypt==4.0.1`을 실행했기 때문이며
+  그 수정이 저장소에 반영되지 않았다. 앞으로 "로컬에서 통과"를 검증 근거로 쓸 때
+  **신규 환경에서도 통과하는지** 확인한다
+
+### [Q-005] passlib 탈출 — 비밀번호 해싱 현대화
+- 상태: 대기
+- 근거: `passlib`는 2020년 이후 릴리스가 없고 bcrypt 4.1+와 비호환이다. 현재 `bcrypt<4.1` 고정으로
+  버티고 있으나 보안 패치를 받을 수 없는 구조다
+- 범위: `app/core/security.py`의 `pwd_context`를 `bcrypt` 직접 호출 또는 `argon2-cffi`로 교체.
+  기존 해시와의 하위 호환(검증은 구 해시도 통과, 로그인 시 재해싱) 필수
+- 주의: **보안 민감 변경.** 기존 사용자 로그인이 깨지면 안 된다. 마이그레이션 경로를 먼저 설계
+- 차단 요인: 없음. 단 ADR 선행 필요
+
+### [Q-006] SQLAlchemy 2.1 마이그레이션
+- 상태: 대기
+- 근거: 현재 `<2.1`로 고정해 업그레이드를 미뤘다. 2.1의 변경점이 이 코드베이스에 미치는 영향이 미검증이다
+- 측정된 사실: 2.1.1 + `postgresql+psycopg2://` 조합에서 유닛 테스트 **961 통과 / 17 오류**.
+  17건은 전부 bcrypt 문제이며 SQLAlchemy와 무관했다. 즉 **드라이버를 명시하면 2.1 자체는 통과할 가능성이 있다**
+- 범위: bcrypt 문제 해결(Q-005) 후 `<2.1` 고정을 풀고 전체 스위트로 재검증
+- 차단 요인: Q-005
+
+### [Q-007] 의존성 전수 고정 검토
+- 상태: 대기
+- 근거: Q-004에서 무고정 의존성 2건이 7개월간 CI를 무력화했다. `pyproject.toml`의 나머지
+  `>=` 선언도 같은 위험을 갖는다 (langgraph, celery, fastapi 등)
+- 범위: 상한 설정 또는 lock 파일(`uv.lock`/`requirements.txt`) 도입 검토. CI에 신규 환경 설치 검증 추가
+- 차단 요인: 없음
+
 ---
 
 ## P1 — Stage A 기반 (검증 장치 재건)

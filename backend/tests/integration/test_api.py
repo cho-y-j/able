@@ -17,7 +17,7 @@ _test_fernet_key = _Fernet.generate_key().decode()
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-tests")
 os.environ.setdefault("ENCRYPTION_KEY", _test_fernet_key)
 os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://able:able_secret@localhost:15432/able")
-os.environ.setdefault("DATABASE_URL_SYNC", "postgresql://able:able_secret@localhost:15432/able")
+os.environ.setdefault("DATABASE_URL_SYNC", "postgresql+psycopg2://able:able_secret@localhost:15432/able")
 os.environ.setdefault("REDIS_URL", "redis://localhost:16379/1")
 
 from app.core.security import create_access_token, hash_password
@@ -102,7 +102,7 @@ class TestConfigLoading:
         from app.config import Settings
         settings = Settings(
             database_url="postgresql+asyncpg://test:test@localhost/test",
-            database_url_sync="postgresql://test:test@localhost/test",
+            database_url_sync="postgresql+psycopg2://test:test@localhost/test",
             secret_key="test-key",
         )
         assert settings.app_name == "ABLE"

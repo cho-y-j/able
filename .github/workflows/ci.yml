@@ -42,7 +42,7 @@ jobs:
 
     env:
       DATABASE_URL: postgresql+asyncpg://able:able_secret@localhost:5432/able_test
-      DATABASE_URL_SYNC: postgresql://able:able_secret@localhost:5432/able_test
+      DATABASE_URL_SYNC: postgresql+psycopg2://able:able_secret@localhost:5432/able_test
       REDIS_URL: redis://localhost:6379/0
       SECRET_KEY: ci-test-secret-key-not-for-production
       ENCRYPTION_KEY: ""
