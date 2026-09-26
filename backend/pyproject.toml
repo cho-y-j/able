@@ -7,10 +7,25 @@ dependencies = [
     # Web framework
     # fastapi 0.137+는 include_router가 실제 라우트 대신 `_IncludedRouter`(path 속성 없음)를
     # app.routes에 등록한다 → 라우트 introspection 비호환, 이 코드베이스에서 미검증
-    "fastapi>=0.115.0,<0.137",
-    # fastapi 0.136은 starlette 상한을 선언하지 않는다(0.130까지는 <1.0.0였음).
-    # starlette 1.x는 미검증이므로 직접 고정한다
-    "starlette>=0.46.0,<1.0",
+    #
+    # 하한 0.133.0 근거 (2026-09-27 실측):
+    # - PyPI requires_dist 실측: starlette 상한 `<1.0.0` 은 fastapi 0.132.0 까지 유지되고
+    #   0.133.0 에서 사라진다. 0.132.0 = `starlette<1.0.0,>=0.40.0`, 0.133.0 = `starlette>=0.40.0`.
+    #   따라서 starlette 1.x 를 허용하는 최소 fastapi 가 0.133.0 이다.
+    # - `uv pip compile --constraint` 실측: fastapi==0.132.0 + `starlette>=1.3.1` → `No solution found`,
+    #   fastapi==0.133.0 → starlette==1.7.0 으로 정상 해석.
+    # - 직전 하한 `>=0.115.0` 은 자기모순이었다: `starlette>=0.46.0` 과 조합하면
+    #   fastapi 0.115.0–0.115.9 구간에 해가 없다 (0.115.9 는 `starlette<0.46.0` 을 요구).
+    "fastapi>=0.133.0,<0.137",
+    # starlette 하한 1.3.1 근거 (2026-09-27 OSV 실측):
+    # 이전 제약 `>=0.46.0,<1.0` 은 starlette 0.52.1 로 해석되었고, 그 버전은 공표된 권고 5건에
+    # 해당한다 — GHSA-86qp-5c8j-p5mr(fixed 1.0.1), GHSA-x746-7m8f-x49c(1.1.0),
+    # GHSA-wqp7-x3pw-xc5r(1.1.0), GHSA-jp82-jpqv-5vv3(1.3.0), GHSA-82w8-qh3p-5jfq(1.3.1).
+    # 수정 버전이 전부 1.x 이므로 `<1.0` 범위 안에는 어느 지점에도 안전한 버전이 없다.
+    # 그래서 상한을 지우고, 하한을 5건이 모두 수정된 최초 버전으로 올렸다.
+    # OSV 질의 실측: 1.3.0 은 1건 잔존, 1.3.1 부터 0건. 현재 해석값은 1.7.0 (권고 0건).
+    # 상한을 다시 두지 않는다 — 상한 자체가 바로 이 결함을 만들었다.
+    "starlette>=1.3.1",
     "uvicorn[standard]>=0.32.0",
     "python-multipart>=0.0.9",
     # Database
@@ -26,7 +41,22 @@ dependencies = [
     "email-validator>=2.0",
     "python-jose[cryptography]>=3.3",
     "passlib[bcrypt]>=1.7",
-    "bcrypt>=4.0,<4.1",  # passlib 1.7.4는 bcrypt>=4.1의 __about__ 제거와 비호환
+    # bcrypt 범위 근거 (2026-09-27 실측). passlib 1.7.4 고정 +
+    # CryptContext(schemes=["bcrypt"]) 로 hash() → verify() 왕복을 버전별로 돌렸다:
+    #   4.0.1                                OK
+    #   4.1.0                                FAIL — TypeError: argument 'salt': 'str' object
+    #                                        cannot be converted to 'PyBytes'
+    #                                        (PyPI 에서 yanked: "Incompatibility with
+    #                                         assumptions made by passlib")
+    #   4.1.1 4.1.2 4.1.3 4.2.0 4.2.1 4.3.0  전부 OK
+    #   5.0.0                                FAIL — ValueError: password cannot be longer
+    #                                        than 72 bytes
+    # 이전 주석은 "passlib 1.7.4 는 bcrypt>=4.1 의 __about__ 제거와 비호환" 이라고 적었지만
+    # 그것은 원인이 아니다. passlib/handlers/bcrypt.py:620 의 `_bcrypt.__about__.__version__`
+    # 읽기는 바로 다음 줄의 bare except 에 트랩되어
+    # "(trapped) error reading bcrypt version" 경고로 끝나고 해싱은 그대로 성공한다.
+    # 실제 실패 지점은 :655 의 `_bcrypt.hashpw(secret, config)` 다.
+    "bcrypt>=4.1.1,<5.0",
     "cryptography>=43.0",
     # HTTP client
     "httpx>=0.27.0",

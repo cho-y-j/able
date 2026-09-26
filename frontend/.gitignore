@@ -31,7 +31,11 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files (can opt-in for committing if needed)
+# 루트 .gitignore 와 같은 정책: .env* 는 막고 .example 템플릿만 추적한다.
+# negation 이 없으면 frontend/.env.example 이 ignore 되어 템플릿이 커밋되지 않는다.
 .env*
+!.env.example
+!.env.*.example
 
 # vercel
 .vercel
