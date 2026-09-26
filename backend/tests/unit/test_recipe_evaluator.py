@@ -4,7 +4,7 @@ import os
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-e2e")
 os.environ.setdefault("ENCRYPTION_KEY", "test" * 8 + "==")
 os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://able:able_secret@localhost:15432/able")
-os.environ.setdefault("DATABASE_URL_SYNC", "postgresql://able:able_secret@localhost:15432/able")
+os.environ.setdefault("DATABASE_URL_SYNC", "postgresql+psycopg2://able:able_secret@localhost:15432/able")
 os.environ.setdefault("REDIS_URL", "redis://localhost:16379/1")
 
 import uuid

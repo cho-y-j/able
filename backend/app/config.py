@@ -9,7 +9,7 @@ class Settings(BaseSettings):
 
     # Database
     database_url: str = "postgresql+asyncpg://able:able_secret@localhost:15432/able"
-    database_url_sync: str = "postgresql://able:able_secret@localhost:15432/able"
+    database_url_sync: str = "postgresql+psycopg2://able:able_secret@localhost:15432/able"
 
     # Redis
     redis_url: str = "redis://localhost:16379/0"
