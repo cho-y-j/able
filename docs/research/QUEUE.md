@@ -206,8 +206,90 @@
 - 범위: 엔드포인트가 명시적 `status: "미검증"` + 사유를 반환. 프론트에 노출(Q-037·Q-038 인접)
 - 차단 요인: 없음. **가장 값싼 정직성 이득**
 
-### [Q-002c] 실패한 `oos_score: 0` 이 DB에 저장되고 화면에 표시된다
+### [Q-002c] `oos_score` 가 동어반복 지표다 — 더 나쁜 전략이 더 높은 점수를 받는다
+- 상태: 진행중 (P0, 병합 차단 사유)
+- **근거 (L-0019 #1, 실측)**: `out_of_sample.py:160-175` 의 보유율(retention) 공식이 뒤집혀 있다.
+  | oos_score | 상황 |
+  |---|---|
+  | 66.67 | IS 흑자, OOS 흑자, 열화 0 |
+  | 66.67 | IS 적자, OOS 같은 적자 |
+  | **83.33** | **IS 적자, OOS 더 큰 적자** ← 25% 더 높다 |
+  | 76.67 | IS 적자, OOS 파멸적 |
+  원인: `safe_ratio(oos, is)` 가 **부호를 보지 않는다.** IS 가 음수일 때 OOS 가 더 음수면 비율이 커진다
+- **근거 (L-0019 #2)**: 3개 실패 경로(`:135` 데이터 부족, `:139` IS 실패, `:149`·`:155` OOS 실패)가
+  모두 `oos_score: 0` 센티넬을 반환하고 `backtests.py:213` 이 그것을 **DB에 측정값처럼 영속화**한다.
+  `OOSResponse`(`schemas/validation.py:27-33`)에 `validation_status`·`reason_codes`·`is_validated` 가 **없다**
+- **왜 P0 인가**: 이 값이 `frontend/.../backtests/[id]/page.tsx:182` 와 `ValidationTab.tsx:259` 에서
+  `scoreColor()` 로 **녹색 표시**된다. CPCV 는 프론트에서 호출조차 안 되는데(`grep` 0건)
+  **실제 사용자가 보는 숫자가 거짓**이다. 검수자 표현: "고친 쪽은 화면에 안 나오고, 안 고친 쪽만 나온다"
+- 범위:
+  1. **보유율 공식을 폐기하거나 부호를 반영하도록 재설계.** IS 가 적자면 "열화 없음" 이 아니라
+     **애초에 후보가 아니다** — 게이트로 처리하는 것이 맞는지 판단 필요
+  2. Q-002b 와 같은 패턴으로 `OOSResponse` 에 `validation_status`/`reason_codes`/`is_validated` 추가
+  3. 실패 경로의 센티넬 0 이 DB에 저장되지 않게. `Backtest.oos_score` 컬럼 `nullable` 여부·마이그레이션 확인
+  4. 프론트가 `미검증` 을 숫자로 표시하지 않게 (Q-038 과 함께)
+- 차단 요인: 없음
+
+### [Q-020e] `flow_opposition_score` 포화 — 사실상 `sign(smart_money)` 3값 변수
 - 상태: 대기
+- **근거 (L-0019 #5, 실측)**: 한국 수급 항등식(`개인+외국인+기관+기타법인≈0`)에서 S·I 부호 반대는 **정상 상태**다.
+  기타법인이 양다리의 10% 규모일 때 `|score|==1.0` 이 **96.75%**, 동일 규모여도 **74.77%**.
+  `corr(score, sign(S)) = 0.977`. 반환 11개 팩터의 **행렬 rank = 4** (선형종속)
+- 범위: 포화하지 않는 정의로 교체하거나, 점수를 폐기하고 강도 채널(`_qty`·`_ratio`)만 유지.
+  **선형종속 팩터를 모델에 넣으면 중요도가 분산되어 해석이 무의미해진다.**
+  `docstring` 도 정정 필요 (#6: `S=+100, I=0` 도 `+1.0` 인데 "개인이 팔 때만" 이라고 적혀 있다)
+- 차단 요인: 없음
+
+### [Q-010d] `cryptography>=43.0` 하한이 권고 6건 해당
+- 상태: 대기 (보안)
+- **근거 (L-0019 #10)**: `starlette<1.0` 을 기각한 논리와 **동일하다** — 선언 하한이 취약 버전이면
+  락파일 없이는 "최신으로 해석될 때만 안전" 하다. `cryptography 43.0` 은 권고 6건 해당.
+  더 나쁜 것: 저장소 `.venv` 는 `cryptography 46.0.5` = **권고 6건**이고
+  **Fernet 으로 KIS 자격증명을 암호화하는 경로가 그것을 쓴다**
+- 범위: 하한을 권고 0건 버전으로 상향. `python-jose[cryptography]>=3.3` 의 전이 의존도 확인
+- 차단 요인: 없음. **Q-007 의 일부이나 보안이므로 분리**
+
+### [Q-007b] 저장소 `.venv` 가 선언 핀을 만족하지 않는다
+- 상태: 대기
+- **근거 (L-0019 #11)**: `.venv` 는 starlette `0.52.1`(선언 `>=1.3.1`), bcrypt `4.0.1`(선언 `>=4.1.1`),
+  cryptography `46.0.5`(권고 6건). 그런데 `CLAUDE.md` 가 에이전트에게 **그 venv 로 증거를 재현하라**고 지시한다
+  → **문서가 지정한 재현 환경이 브랜치가 지원하지 않는다고 선언한 의존성 집합이다**
+- 범위: `.venv` 재생성 절차를 문서화하고, 락파일 도입 시 CI 와 로컬이 같은 해석을 갖게 한다.
+  선언과 설치의 불일치를 감지하는 검사 추가
+- 차단 요인: 없음
+
+### [Q-009b] CI 가 하지 않는 일을 주석이 한다고 말한다 + frontend 테스트 34파일 미실행
+- 상태: 대기
+- **근거 (L-0019 #8·#9)**:
+  - `ci.yml:14` `# Backend: lint + test` — **lint 스텝이 없고** `pyproject.toml` 에 ruff·mypy·black·flake8 선언 0건
+  - `ci.yml:83` `# Frontend: lint + build` — `npm run build` 만 돌고 `npm run lint`·`npm test` 없음.
+    **jest 테스트 파일 34개가 CI 에서 한 번도 실행되지 않는다**
+  - 의존성 감사(pip-audit/npm audit) 없음, 락파일 없음, `alembic upgrade head` 검증 없음
+  - **`docker` job 이 `if: push && main` 이라 PR 에서 실행되지 않는다** — 배포 이미지가 병합 전 미검증
+- 범위: 주석을 사실에 맞추거나 실제로 lint·test 를 추가. **OSV/pip-audit 를 CI 에 넣는다**(Q-007 과 연동).
+  docker job 을 PR 에서도 돌린다
+- 차단 요인: 없음
+
+### [Q-000b] 커밋 게이트를 강제하는 git hook 이 없다
+- 상태: 대기
+- **근거 (L-0019 #19)**: `CLAUDE.md` 7장이 "게이트는 세지 말고 차단해야 한다"고 가르치고 게이트가 `exit 1` 을
+  내지만 **그것을 실행시키는 것이 아무것도 없다.** `.git/hooks/` 에 `.sample` 만 있다.
+  실효 방어는 `.gitignore` 하나다
+- 범위: `pre-commit` hook 추가. 단 `.git/hooks/` 는 git 에 추적되지 않으므로
+  `core.hooksPath` 또는 설치 스크립트가 필요하다. Makefile 에 설치 타깃 추가 검토
+- 차단 요인: 없음
+
+### [Q-002d] 무가치한 테스트 1건 + 잠재 예외 1건
+- 상태: 대기
+- 근거: L-0019 #15 — `_cpcv_fold_failed` 의 `or "sharpe_ratio" not in fold` 절을 **삭제해도 27 테스트 전부 통과**
+  (검수자 변형 M5). 죽은 코드이며 테스트되지 않는다.
+  #14 — `statistics.pstdev` 가 nan/inf 에서 예외를 던진다. 구 경로 `np.std` 는 값을 반환했다.
+  현재는 `engine.py:91` 가드로 도달 불가함이 확인됐으나 테스트가 없다.
+  #7 — 같은 응답에서 `cpcv_score` 는 `succeeded` 분모, `positive_folds`/`total_folds` 는 `evaluated` 분모
+- 차단 요인: 없음
+
+### [Q-002e] (구) 실패한 `oos_score: 0` 저장 — Q-002c 로 통합됨
+- 상태: 폐기(통합 → Q-002c)
 - 근거: L-0017. **CPCV 와 달리 이건 실제 사용자에게 보인다.**
   `out_of_sample.py:38-41,51,57` 이 검증 실패 시 `oos_score: 0` 을 반환하고,
   `api/v1/backtests.py:213` `bt.oos_score = result.get("oos_score", 0)` 가 그 0 을 **DB에 저장**하며,
