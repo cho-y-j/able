@@ -35,7 +35,9 @@
 
 | ID | 제목 | 상태 | 차단 요인 |
 |----|------|------|-----------|
-| L-0009 | 절차 위반 기록 | 구현됨 | 독립 검수 대기 |
+| L-0011 | **독립 검수 반증됨** | 반증됨 | **병합 차단** — 결함 11건 수정 필요 |
+| L-0012 | instrument 설계 명세 | 구현됨 | 미해결 질문 10건 |
+| L-0009 | 절차 위반 기록 | 구현됨 | 검수 완료(L-0011) |
 | L-0008 | .env 규칙 개정 + 유출 차단 | 검증됨 | 루틴 프롬프트 갱신 필요 |
 | L-0007 | 루틴 프롬프트 v2 | 구현됨 | 첫 실행 결과 대기 |
 | L-0006 | 에이전트 로드 제약 | 구현됨 | 루틴 첫 실행까지 클라우드 로드 여부 미검증 |
@@ -46,6 +48,104 @@
 ---
 
 ## 기록 (최신순)
+
+### [L-0011] 독립 검수 판정 `반증됨` — 결함 11건. 병합 보류
+- 날짜: 2026-09-27
+- 담당: 독립 검수자(`Explore`, 쓰기 도구 없음) / 기록: main
+- 상태: **반증됨**
+- 대상: `chore/agent-governance` 6커밋 (`main...HEAD`, merge-base `7940262`, HEAD `5e3bb8a`, 33파일 +1352/−30)
+- 검수 무결성: 검수 전/후 `git status --porcelain` 모두 빈 출력. `--untracked-files=all` 도 공백.
+  HEAD 동일, `backend/.venv` mtime 불변. **검수 유효.** 검증은 전부 `git archive` 추출본 + 신규 venv 6개에서 수행
+- **`높음` 2건 (병합 차단)**:
+  - **D1** `pyproject.toml:13` `starlette>=0.46.0,<1.0` 이 **해롭다.** 이 범위의 0.52.1은 공표 권고 5건에 해당하고
+    **전부 1.x에서만 수정**되었다(fixed 1.0.1/1.1.0/1.1.0/1.3.0/1.3.1) — `<1.0` 안에 안전한 버전이 없다.
+    게다가 **불필요**: `fastapi 0.136.3 + starlette 1.7.0` 로 전체 스위트 `1102 passed in 81.81s`
+  - **D2** 7개월 실패의 **인과가 거짓** → ADR-0012 로 정정
+- **`중간` 4건**:
+  - **D3** `bcrypt>=4.0,<4.1` 의 근거가 틀렸고 상한이 4개 마이너 과도하다.
+    `__about__` AttributeError 는 `passlib/handlers/bcrypt.py:620` 에서 **트랩되어 로그 경고로 끝난다.**
+    실제 치명 예외는 `:655` 의 `ValueError: password cannot be longer than 72 bytes`.
+    실측: 4.0.1 OK / **4.1.0 FAIL**(`TypeError: argument 'salt'`) / 4.1.1·4.1.2·4.1.3·4.2.0·4.3.0 **전부 OK** / **5.0.0 FAIL**.
+    올바른 제약은 `>=4.1.1,<5.0` 계열. 현재 핀은 비밀번호 해싱을 2022-10 릴리스에 틀린 이유로 동결한다
+  - **D4** `ci.yml:69-72` 런타임 Fernet 키가 **공개 CI 로그에 평문 노출**. `gh run view 36256788463 --log` 920행에서 확인.
+    저장소는 `PUBLIC`. `::add-mask::` 미사용
+  - **D5** `cd92915` 커밋 메시지 불일치(L-0009 기록됨) + `aef6d4a` 가 "Fix 7 months of CI" 라 자칭했으나
+    그 커밋의 런 `36255510347` 은 **failure**. 초록은 `cd92915` 부터
+  - **D6** `tests/integration/test_market_api.py::TestDailyReport::test_get_balance` **순서 의존 테스트.**
+    전체 스위트에서만 통과, 단독·파일단위 실행 시 실패. sqlalchemy 2.0.54/2.1.1, main/HEAD 모두 동일.
+    `RecursionError` 가 traceback 포맷팅을 파괴해 원인 은폐. **이 브랜치 무관 기존 결함**
+- **`낮음` 5건**: D7 `alembic.ini:4` bare URL 잔존(내 "21개 파일" 주장이 놓친 22번째, 실사용은 `env.py:16`이 덮어써 무해) /
+  D8 `fastapi>=0.115.0` + `starlette>=0.46.0` 이 0.115.0–0.115.11 구간에서 해 없음(실효 하한 0.115.12) /
+  D9 내 주석 "0.130까지 `<1.0.0`" 오류 — 실제로는 0.132.0까지 유지, 0.133.0에서 제거 /
+  D10 `CLAUDE.md` §1.2·§4.3 이 인용한 `Sharpe 10.74 → 0.24` 가 커밋된 `proof_lookahead.py`(SEED=7) 실행값
+  `9.99 / −0.51` 과 불일치 (L-0003에 차이를 기록했으나 CLAUDE.md 본문은 갱신하지 않았다) /
+  D11 `frontend/.gitignore:34` `.env*` 에 negation 없어 `frontend/.env.example` 이 IGNORED
+- **검수가 확인한 유효 사항 (공정 기록)**:
+  - `1102 passed` 재현 — CI 로그 1086행 `1102 passed, 621 warnings in 62.70s` 와 정확히 일치
+  - sqlalchemy 메커니즘 정확히 재현: `Interrupted: 2 errors during collection`, 테스트 0건 (단 **현재 시점** 조건에서)
+  - fastapi `<0.137` 경계 — 휠 6종 직접 grep: 0.134.0~0.136.3 없음, **0.137.0 최초 등장**. 한 칸도 틀리지 않았다
+  - `.gitignore` 반대 실험: main 규칙에서는 `git add -A` 가 `.env.bak-*`·`.env.save` 를 스테이징,
+    HEAD 규칙에서는 `.env.example` 만. **누출 경로 실재했고 닫혔다**
+  - `config.py` 배포 정합성: `docker-compose.yml` 3개 서비스 전부 갱신됨, bare URL 잔존 서비스 없음
+  - 금융 체크리스트: `git diff main...HEAD --stat -- backend/app/analysis/` 공백 — 이 브랜치는 분석·거래 로직 무변경.
+    체크리스트를 건너뛴 것이 아니라 **대상이 없음을 확인**
+- **검수불가 3건**: 2026-02~09 원본 CI 로그(`HTTP 410`, 90일 보존 만료 — 시점 복원으로 대체) /
+  job-level `env:` 와 `$GITHUB_ENV` 우선순위(공식 문서 미명시, 관측 조건 부재) / starlette 1.x 운영 적합성
+- 검수자 권고: D1 상한 재검토, D2·D3 기록 정정, D4 `::add-mask::`, D7 정리, D6 별도 항목 분리
+- **판정에 따른 조치**: `CLAUDE.md` 3.1절에 의해 **병합하지 않는다.** 수정 → 재검수 → 병합
+- 남은 범위: 수정 작업 미착수
+- 다음 작업: 수정 지시 → 재검수 → PR #1 병합
+- 대체: 없음
+
+### [L-0010] CI 초록 달성 (판정은 L-0011로 대체됨)
+- 날짜: 2026-09-27
+- 담당: main + 구현 에이전트
+- 상태: 구현됨 (검수 결과 `반증됨` — L-0011 참조)
+- 증거 (CI `36256788463`): `결론: success` / `1102 passed, 621 warnings in 62.70s` /
+  설치 버전 `fastapi-0.136.3 starlette-0.52.1 sqlalchemy-2.0.54 bcrypt-4.0.1 psycopg2-binary-2.9.13`
+- 진행 경과: `2 errors during collection`(0건 실행) → `8 failed, 1094 passed` → `1102 passed`
+- 교차 확인: CI `1102 passed` = 로컬 신규 환경 `1102 passed`. 서로 다른 OS·Python·DB포트에서 독립 재현
+- **원인 3(fastapi)의 발견 경로**: 감독자 가설("ENCRYPTION_KEY 부재로 라우터 import 실패")을
+  구현 에이전트가 **반증**했다. 유효 키를 주입해도 실패했고, 0.136.0/0.137.0 이분 탐색으로 경계를 확정했다.
+  지시서에서 가설을 검증 대상으로 명시한 것이 작동했다
+- 검수: L-0011 에서 `반증됨`. 근거 서술과 상한 범위에 결함
+- 다음 작업: L-0011 결함 수정
+
+### [L-0012] `instrument` 설계 명세 (Q-016) — 내 기억 오류 2건 정정 포함
+- 날짜: 2026-09-27
+- 담당: 설계 조사 에이전트(`Explore`) / 기록: main
+- 상태: 구현됨 (명세만. 코드 무변경)
+- 무결성: 시작·종료 `git status --porcelain` 빈 출력 동일. 파일 변경 없음
+- **내 기억 오류 정정**:
+  1. "upsert 로직이 유니크 제약에 의존한다"는 `CLAUDE.md` 에 없다. 출처는 `PROJECT_STATUS.md:106` 과 커밋 `280d101`.
+     그리고 **DB 레벨 `ON CONFLICT` upsert 가 아니다** — `strategy_search.py:269-314` 와
+     `optimization_tasks.py:300-344` 의 애플리케이션 레벨 SELECT-then-INSERT 두 벌이다.
+     제약의 실제 역할은 (a) Celery 병렬 워커의 경쟁 삽입 차단 (코드에 락 없음)
+     (b) `scalar_one_or_none()` 이 `MultipleResultsFound` 를 던지지 않음을 보장.
+     → 제약을 드롭하면 문법적으로 안 깨지고, **중복 행이 쌓인 순간부터 `MultipleResultsFound` 로 터진다**
+  2. 진짜 `ON CONFLICT` 의존처는 `factor_collector.py:363-368` — 원시 SQL이 **제약명을 하드코딩**한다.
+     `:373-378` per-row `except` 가 `warning` 으로 삼켜 **깨져도 조용히 전량 실패**한다
+- **간과했던 차단 요인 (중요)**:
+  - `Order.side` / `Trade.side` 가 `String(4)` (`order.py:26`, `trade.py:24`) — **`'short'`(5자)를 담지 못한다.**
+    ADR-0008 의 핵심이 양방향 거래인데 스키마가 거부한다. `String(8)` 확장 필요
+  - `quantity` 가 전부 `Integer` — 미국 fractional share 불가
+  - `Numeric(15,2)` scale 2 가 FX 환율·선물 호가에 충분한지 미검증
+- **백필 전제 반증**: `strategies.stock_code` 에 **미국 티커가 들어 있을 수 있다.**
+  `yahoo_provider.py:91-93` 이 `market="us"` 일 때 ASCII 티커를 그대로 반환하고 `strategy_search.py:142` 가 저장하는데,
+  `market` 은 영속되지 않는다(`schemas/strategy.py:56`). 또 `factor_snapshots` 에는 `'_GLOBAL'` 센티넬이 확실히 있다
+  (`global_factor_collector.py:4`). → "국내 현물로 가정" 백필은 **불가**
+- **위험 발견**: `alembic/versions/__pycache__/ade92cc5b58f_*.pyc` 가 있으나 대응 `.py` 가 없다(고아 리비전).
+  어떤 DB가 그 값으로 stamp 되어 있으면 마이그레이션이 전혀 진행되지 않는다
+- 조사된 사실: Alembic head `5df163bb88a2` / `krx_stocks.json` 2,771건(KOSDAQ 1,821 · KOSPI 950, `sector` 전부 공백) /
+  `stock_code` 사용처 backend 615건(66파일) + frontend 139건 / 유니크 제약 4개 / 금액 전부 `Numeric(15,2)` /
+  KIS `constants.py` 경로가 전부 `/uapi/domestic-stock/` — 해외·선물 경로 0건
+- 설계 권고: `instruments` 는 **시점 무관 정적 속성만**. 시변 항목은 `tick_size_rules`·`cost_rules`·`trading_sessions`
+  3개 테이블로 분리하고 **유효기간(`effective_from/to`)** 을 갖게 한다. 유동성은 `factor_snapshots` 재사용
+  (스칼라로 두면 point-in-time 이 깨져 룩어헤드 재유입)
+- 검수: 미검수 (명세 문서)
+- 남은 범위: 미해결 질문 10건 — 선물 규정 수치, KIS 선물/해외 경로, 운영 DB 실측, `strategy_key` 생성열 승인 등
+- 다음 작업: Q-016 을 Q-016a/Q-016b 로 분할 (권고 수용)
+- 대체: 없음
 
 ### [L-0009] 절차 위반 — 타 에이전트 미완성 작업을 검수 전 커밋
 - 날짜: 2026-09-27
