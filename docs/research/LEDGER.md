@@ -35,6 +35,7 @@
 
 | ID | 제목 | 상태 | 차단 요인 |
 |----|------|------|-----------|
+| L-0008 | .env 규칙 개정 + 유출 차단 | 검증됨 | 루틴 프롬프트 갱신 필요 |
 | L-0007 | 루틴 프롬프트 v2 | 구현됨 | 첫 실행 결과 대기 |
 | L-0006 | 에이전트 로드 제약 | 구현됨 | 루틴 첫 실행까지 클라우드 로드 여부 미검증 |
 | L-0005 | CI 정상화 | 구현됨 | 통합 8건 수정 중 (구현 에이전트 작업) |
@@ -44,6 +45,43 @@
 ---
 
 ## 기록 (최신순)
+
+### [L-0008] `.env` 수정 규칙 개정 + gitignore 비밀값 유출 경로 차단
+- 날짜: 2026-09-27
+- 담당: main
+- 상태: 검증됨 (실행으로 재현 가능)
+- 대상 파일: `.gitignore:14-20`, `CLAUDE.md:69-93,183-190`, `.env`(추적 안 됨), `backend/.env`(추적 안 됨)
+- 한 일:
+  1. 사용자 지시로 `.env` 수정 금지를 해제. `CLAUDE.md` 2.3절 신설 — 수정은 허용하되
+     **비밀값 출력 금지 / `.env` 계열 커밋 금지 / 새 비밀값 생성 금지** 세 조항과 5단계 절차를 명문화
+  2. `.env` 와 `backend/.env` 의 `DATABASE_URL_SYNC` 를 `postgresql+psycopg2://` 로 수정 (L-0005 후속)
+  3. **`.gitignore` 의 비밀값 유출 경로를 차단** (아래 사고 항목)
+- 증거:
+  - 수정 전: `.env:7` / `backend/.env:9` 모두 `DATABASE_URL_SYNC=postgresql://***:***@localhost:15432/able`
+  - 수정 후: 둘 다 `postgresql+psycopg2://***:***@localhost:15432/able`
+  - 백업 생성: `.env.bak-20260927-014323`, `backend/.env.bak-20260927-014323`
+  - 동작 검증: `DATABASE_URL_SYNC 드라이버: psycopg2` / `DATABASE_URL 드라이버: asyncpg`
+  - 앱 임포트: `async engine: asyncpg` / `sync engine: psycopg2` / `앱 임포트 성공`
+  - 회귀 없음: `pytest tests/unit -q` → `978 passed, 148 warnings in 13.51s`
+  - 변수명 무결성 확인: `backend/.env:9` 는 `DATABASE_URL_SYNC` 로 온전함.
+    사용자가 선택해 보여준 `ATABASE_URL_SYNC` 는 선택 시작 열이 2열이어서 `D` 가 빠져 보인 것이며 손상이 아니다
+- **사고 (내가 만들었고 즉시 차단함)**:
+  `.gitignore` 가 `.env` `.env.local` `.env.production` **정확한 파일명만** 막고 있었다.
+  내가 만든 `.env.bak-*` 백업 2개가 `git check-ignore` 에서 **추적 대상**으로 확인됐다.
+  → `git add -A` 시 `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, `SMTP_PASSWORD`, `ENCRYPTION_KEY`,
+    `SECRET_KEY` 가 공개 저장소(`github.com/cho-y-j/able`)에 커밋될 상태였다.
+  **자동 루틴이 `git add -A` 를 실행하므로 실제 유출로 이어질 수 있었다.**
+  조치: `.gitignore` 를 `.env*` + `!.env.example` + `!.env.*.example` 로 교체.
+  검증: 백업 2개와 `.env` 2개 모두 `ignore됨`, `.env.example` 2개는 `추적 유지`,
+        `git status --porcelain | grep -E "\.env"` → 출력 없음
+  과거 이력 확인: `git log --all --diff-filter=A --name-only` 에 `.env` 계열 추가 이력 **없음** —
+  비밀값이 이력에 남은 적은 없다
+- 검수: 자체 검증이나 재현 가능. `git check-ignore -q <파일>` 로 누구나 확인 가능
+- 남은 범위:
+  - 루틴 프롬프트의 `.env` 금지 조항을 개정된 규칙에 맞게 갱신해야 함
+  - 백업 파일 2개는 보존 중 (ignore됨). 사용자가 원하면 삭제 가능
+- 다음 작업: 루틴 프롬프트 갱신 → 구현 에이전트 결과 수령 → 독립 검수 → PR #1 병합
+- 대체: 없음
 
 ### [L-0007] 루틴 프롬프트 v2 — 3축 격자 연결, 에이전트 폴백, 문자열 손상 수정
 - 날짜: 2026-09-27

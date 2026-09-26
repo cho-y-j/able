@@ -13,9 +13,11 @@ venv/
 env/
 
 # Environment
-.env
-.env.local
-.env.production
+# 주의: 정확한 파일명만 막으면 .env.bak-*, .env.save 같은 파생 파일이 추적 대상이 되어
+# git add -A 시 비밀값이 커밋된다. 와일드카드로 막고 .example 만 예외로 둔다.
+.env*
+!.env.example
+!.env.*.example
 
 # IDE
 .vscode/

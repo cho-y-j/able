@@ -45,7 +45,9 @@ jobs:
       DATABASE_URL_SYNC: postgresql+psycopg2://able:able_secret@localhost:5432/able_test
       REDIS_URL: redis://localhost:6379/0
       SECRET_KEY: ci-test-secret-key-not-for-production
-      ENCRYPTION_KEY: ""
+      # ENCRYPTION_KEY는 여기 선언하지 않는다. 아래 "Generate throwaway ENCRYPTION_KEY"
+      # 스텝이 $GITHUB_ENV로 주입한다. job-level env에 같은 이름이 남아 있으면
+      # $GITHUB_ENV 값을 가릴 수 있으므로 선언 자체를 제거한다.
 
     steps:
       - uses: actions/checkout@v4
@@ -61,6 +63,13 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install ".[dev]"
+
+      # 테스트 전용 일회용 Fernet 키. 매 실행마다 새로 만들고 job이 끝나면 버린다.
+      # 운영 키는 저장소·워크플로에 두지 않는다. 암호화된 값을 CI 밖으로 들고 나갈 수 없다.
+      - name: Generate throwaway ENCRYPTION_KEY (single-use, discarded with the runner)
+        working-directory: backend
+        run: |
+          echo "ENCRYPTION_KEY=$(python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')" >> "$GITHUB_ENV"
 
       - name: Run tests
         working-directory: backend
