@@ -139,8 +139,73 @@
 
 ## P1 — Stage A 기반 (검증 장치 재건)
 
-### [Q-010] Purged CV + Embargo 구현
+### [Q-002b] `combinatorial_purged_cv` 엔드포인트가 오도를 멈추게 (최소 조치)
 - 상태: 대기
+- 근거: L-0013. `api/v1/backtests.py:222-236` 이 비작동 CPCV 결과를 정상 응답으로 반환한다.
+  전량 실패해도 `cpcv_score: 0.0` 이 나온다. Q-001·Q-015 의존 없이 ~10행으로 정직해질 수 있다
+- 범위: 엔드포인트가 명시적 `status: "미검증"` + 사유를 반환. 프론트에 노출(Q-037·Q-038 인접)
+- 차단 요인: 없음. **가장 값싼 정직성 이득**
+
+### [Q-015a] 삼중 배리어 라벨링 — 코어 (Q-010보다 먼저)
+- 상태: 대기
+- 근거: L-0013 우선순위 권고. Q-010 의 purge 입력 `t1` 이 코드베이스에 없다.
+  `t1` 없이 Q-010 을 만들면 상수 `purge_days` 결함 설계를 재생산한다
+- 범위: `backend/app/analysis/labeling/triple_barrier.py` 신규.
+  `BarrierConfig(mode natr|sigma|fixed_pct, pt/sl_mult, vertical_bars, ambiguous_policy,
+  min_cost_multiple, entry_offset=1)` / 반환 DataFrame: `t1, label(-1/0/+1), ret, barrier_hit,
+  gap_through, fill_blocked, ambiguous, truncated`
+  - **상방은 `high`, 하방은 `low`** 로 판정. 기준가는 `close[t]` 가 아니라 **t+1 체결가**(ADR-0002)
+  - 기존 `volatility.py:86-94` NATR 재사용 (`ewm(adjust=False)` 이므로 인과적). 두 번째 변동성 정의 금지
+  - 고정 % 모드도 구현 — 한국 실증연구가 고정 9%/9% 로 성공했다(arXiv:2504.02249). 기본값만 동적
+  - 갭: t+1 시가가 배리어 관통 시 `ret` 은 **시가 기준**, `gap_through=True`
+  - 상하한가 잠김: `fill_blocked=True`, 하한가에서 손절을 체결시키지 않고 다음 거래가능 봉으로 이월
+  - 테스트 T14~T21 + **T15(절단 재계산 일치)가 룩어헤드 증명의 핵심**
+  - **일중 경로 보존 합성 생성기 신규 필요** — `proof_lookahead.py:41` 은 OHLC 축퇴로 사용 불가
+- 차단 요인: Q-001 (T22 체결 대조는 엔진 수정 후에만 가능)
+
+### [Q-010a] PurgedKFold — splitter 만 (CPCV 아님)
+- 상태: 차단
+- 범위: `backend/app/analysis/validation/cv.py` 신규. **기존 함수를 고치지 않고 새로 쓴다**
+  (ADR-0009 가 `validation/` 4파일을 재작성 대상으로 이미 결정)
+  - purge 는 **구간 교차 술어 하나로**: `drop if (t_i <= b) and (t1_i >= a)`. 케이스 분기 금지
+  - embargo 는 **오른쪽만**, **purge 종료 지점부터**. `h = max(ceil(embargo_pct·T), 최대 피처 룩백)`
+  - **날짜 원자 분할**: 어떤 날짜도 학습·테스트에 동시 등장 금지 (같은 날 시장요인 공유)
+  - API 는 `purge_days` 가 아니라 **`t1`** 을 받는다. purge 길이는 상수가 아니다
+  - `average_uniqueness` 는 **진단값으로만** 출력. 가중은 Q-012 이후로 승급
+  - 테스트 T1~T13. **T9(오라클 피처가 purge 로 붕괴) + T10(랜덤워크 무능력) + T11(진짜 신호는 탐지)
+    세 개가 함께 증명** — T11 없으면 학습셋을 비우는 splitter 도 통과한다
+- 차단 요인: Q-015a (`t1` 필요)
+
+### [Q-015b+Q-010b] 행 정렬 수정 + `train_classifier` 교체 (분리 불가)
+- 상태: 차단
+- 근거: **L-0013 신규 치명 결함.** `build_feature_matrix` 가 행을 라벨순으로 정렬하고
+  (`pattern_discovery.py:80-81`) `train_classifier` 가 그 순서에 `TimeSeriesSplit` 을 적용한다(`:143,157`).
+  현재 보고되는 accuracy/precision/recall/f1 은 **정렬 순서의 산물**이다
+- 범위: `build_feature_matrix` 가 `(date, instrument)` 정렬 X + 평행한 `meta[date, instrument, t1]` 반환 /
+  `PurgedKFold` 교체 / 3항 타깃 / **단일 클래스 폴드 가드**(`degenerate_folds` 카운터) /
+  폴드별 importance 평균±std 보고(전체적합 모델 importance 를 CV 지표 옆에 두지 않는다) /
+  나이브 베이스라인(최다클래스·stratified 더미) 항상 병기 / `generate_screening_rule` 중위값을
+  **학습 폴드 양성 클래스에서만** 계산하고 연산자를 유도
+- 차단 요인: Q-015a, Q-010a. **두 함수를 같이 건드리므로 한 에이전트가 동시에 수행**
+
+### [Q-010c] CPCV + PBO 경로 (Phase 2)
+- 상태: 차단
+- 근거: CPCV 고유 산출물은 경로 분포이고 소비자는 PBO/DSR 뿐이다. 소비자 없이 만들면 아무도 읽지 않는다
+- 범위: `N=6, k=2` → 15분할·5경로. `combinatorial_purged_cv` 는 얇은 어댑터로 재구현 또는 **개칭**.
+  비조합형 절차에 "combinatorial" 이름을 유지하지 않는다 — ADR 로 기록
+- 차단 요인: Q-010a, Q-012
+
+### [Q-014b] `scoring.py` 가 결함을 보상하는 문제
+- 상태: 대기
+- 근거: L-0013. `normalize_metric` 이 [0,100] 클립(`scoring.py:33-37`) → **Sharpe 10(결함 신호)이
+  100으로 정규화돼 A+ 를 받는다.** ADR-0003 은 Sharpe 2 초과를 결함 신호로 규정했는데 스코어러가 보상한다.
+  또 `:48` 의 `"stability"` 분기는 `SCORING_WEIGHTS` 에 키가 없어 **절대 발화하지 않는 죽은 조건**
+- 범위: 상한 초과 시 **알람 플래그**, 죽은 분기 제거, `label_provenance` 블록 부재 시 `grade: "미검증"` 반환
+  (게이트 A 의 구체적 구현 기구), 비용 1x/2x/3x 중 **최악값**을 보고
+- 차단 요인: 없음 (일부는 Q-010a 이후)
+
+### [Q-010] (분할됨 → Q-010a/b/c 참조. 이 항목은 이력용)
+- 상태: 폐기(분할)
 - 근거: `out_of_sample.py:144`의 `train_data`가 미사용이며 purge가 적용되지 않는다. 중첩 라벨로 정보 누출
 - 범위: 날짜 단위 분할, 중첩 라벨 구간 제거, `train_classifier`의 `TimeSeriesSplit` 교체
 - 차단 요인: Q-001 (측정 장치가 먼저 정상화되어야 결과를 신뢰 가능)
