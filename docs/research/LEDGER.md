@@ -35,6 +35,7 @@
 
 | ID | 제목 | 상태 | 차단 요인 |
 |----|------|------|-----------|
+| L-0017 | Q-002b CPCV 정직화 | 구현됨 | oos_score 실패 0이 화면에 표시됨(Q-002c) |
 | L-0016 | 커밋 게이트 정정 | 검증됨 | — |
 | L-0015 | Q-020b 개인 순매수 복구 | 구현됨 | flow 모듈 프로덕션 미배선 발견 |
 | L-0014 | 경쟁 지형 조사 | 구현됨 | 11축 중 10축 열위 확인 |
@@ -52,6 +53,60 @@
 ---
 
 ## 기록 (최신순)
+
+### [L-0017] Q-002b CPCV 엔드포인트 정직화 — 브리핑에 없던 결함 3건 추가 발견
+- 날짜: 2026-09-27
+- 담당: 구현 에이전트(`general-purpose`) / 기록·검증: main
+- 상태: 구현됨
+- 대상 파일: `backend/app/schemas/validation.py:36-131`, `backend/app/api/v1/backtests.py:11-27,226-385`,
+  `backend/tests/unit/test_validation_api.py:139-369`
+- 한 일: **알고리즘을 고치지 않고**(Q-010a 범위) 엔드포인트가 거짓말하는 것만 차단.
+  `_assess_cpcv()` 신규 — 항상 `validation_status: "미검증"` + 구조적 사유 코드 4건 부여,
+  폴드 성공/실패/건너뜀 수 노출, 센티넬 0 을 제외해 점수·평균 재계산(성공 0개면 `None`),
+  하부 원값은 `*_raw` 로 격리. `analysis/validation/**` 는 **한 줄도 건드리지 않았다**
+- **브리핑에 없던 추가 결함 3건 — 내가 코드에서 직접 재확인**:
+  1. **센티넬 오염이 `mean_sharpe` 뿐이 아니다.** `out_of_sample.py:175`
+     `cpcv_score = (positive_folds / len(results)) * 100` 의 **분모에 실패 폴드가 포함**된다.
+     5폴드 중 3실패·2성공(둘 다 양수) → **40점**. 부분 실패가 점수를 조용히 깎는다
+  2. **경로 수가 `n_splits` "개"가 아니라 "이하"다.** `:147-148` 이 `len(test_data) < 20` 폴드를
+     `continue` 로 버리고, **그 누락이 응답 어디에도 나타나지 않았다** → `skipped_folds` 추가
+  3. **`:170-171` 조기 반환도 같은 종류의 거짓이다.** 폴드 0개일 때 `{"cpcv_score": 0, "folds": []}` —
+     **아무것도 측정하지 않은 상태의 0점** → `NO_FOLDS_EVALUATED` + `null` 처리
+- **범위 밖 발견 (더 심각, 프론트에 실제 노출됨)**:
+  `backtests.py:213` `bt.oos_score = result.get("oos_score", 0)` 이 **실패한 0 을 DB에 저장**하고,
+  `frontend/src/app/dashboard/backtests/[id]/page.tsx:182` 가 그것을 `OOS Score` 로 **화면에 표시**한다.
+  `out_of_sample.py:38-41,51,57` 이 실패 시 `oos_score: 0` 을 반환하므로
+  **"검증 실패"와 "검증했는데 0점"이 화면에서 구분되지 않는다.** CPCV 와 달리 이건 실제 사용자에게 보인다
+  → Q-002c 신설. 범위 밖이라 손대지 않은 판단은 옳다
+- 증거 (내가 재실행해 확인):
+  - `pytest tests/unit -q` → `1005 passed, 170 warnings in 13.60s`. **실패 0건**
+  - 기준선 산술 검증: 978(B 이전) + 16(B 신규) + 11(C 신규) = **1005** — 에이전트 C 의 설명과 일치.
+    `pytest --collect-only tests/unit/test_flow_signals.py tests/unit/test_validation_api.py` → `54 tests`
+  - **HTTP 레벨 실물 확인** (에이전트가 `TestClient` + `dependency_overrides` 로 작성한 스크립트를 내가 재실행):
+    전량 실패 케이스 → `HTTP 200`, `"cpcv_score": null`, `"mean_sharpe": null`,
+    `"failed_folds": 3`, `"validation_status": "미검증"`,
+    `reason_codes: [NO_TRAIN_PATH, NOT_COMBINATORIAL, PURGE_HAS_NO_TARGET, PARAMS_FITTED_OUTSIDE, ALL_FOLDS_FAILED, SENTINEL_ZERO_IN_RAW_MEAN]`
+    정상 케이스 → `"cpcv_score": 66.67` 이지만 `"validation_status": "미검증"`, `"score_is_meaningful": false`
+  - 결함 4건 원문 확인: `out_of_sample.py:139-144`(죽은 계산), `:134`(비조합형),
+    `:162-168`+`:173-179`(예외 삼킴+센티넬 평균), `:151`(동일 params)
+  - 프론트 영향: `grep -rni "cpcv" frontend/src` → **0건.** CPCV 엔드포인트는 프론트에서 호출되지 않는다.
+    기존 6필드 삭제 0건, 타입 변경 3건(`null` 허용)은 소비자가 없어 파괴적 영향 없음
+- **기존 테스트를 고치지 않았음을 확인**: `TestCPCV` 두 테스트는 **수정 없이 그대로 통과**하며
+  단정만 3개 추가됐다. 에이전트가 근거를 제시했다 — 기존 단정 3개(`"cpcv_score" in result` 등)는
+  **출력 형태만 보므로 전량 실패 입력에서도 통과한다**. 이를 신규 테스트로 측정해 증명했다
+- **관례 이탈 1건 (감독자 승인 필요 → 승인함)**: QUEUE 표기는 `status: "미검증"` 이었으나
+  필드명을 `validation_status` 로 했다. backtest 자체의 `status`(`completed` 등)와 충돌·혼동을 피하기 위함.
+  값은 `"미검증"` 그대로. **판단이 옳다 — 승인**
+- 검수: 미검수 — 병합 전 독립 검수 대상
+- 남은 범위:
+  - **알고리즘은 여전히 CPCV 가 아니다.** 응답의 정직성만 고쳤다 (Q-010a 선행: Q-015a `t1`)
+  - **실패 사유를 응답에 담을 수 없다.** `out_of_sample.py:162-168` 이 예외 메시지를 버리므로
+    엔드포인트는 실패 **개수**만 안다. 사유 전달은 Q-010a 없이는 불가능
+  - `backend/build/lib/…` 에 구버전 사본 존재. 배포 경로가 이걸 쓰면 수정이 반영되지 않는다 — **미확인**
+  - 린트 미실행(`.venv` 에 ruff 없음, `pyproject.toml` 에 lint 설정 없음), 통합 테스트 미실행,
+    실 서버·실 인증·실데이터 호출 미실행
+- 다음 작업: 구현 A 완료 대기 → 통합 독립 검수 → CI → 병합
+- 대체: 없음
 
 ### [L-0016] 커밋 게이트 결함 — 세기만 하고 차단하지 않았다
 - 날짜: 2026-09-27
